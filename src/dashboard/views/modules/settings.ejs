@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - Settings</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>⚙️ General Settings</h2>
+    </div>
+
+    <div class="settings-section">
+      <h3>Suggestions</h3>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="suggestions.enabled" <%= settings.suggestions?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+      <div class="form-group">
+        <label>Suggestion Channel</label>
+        <select class="form-select" data-guild="<%= guild.id %>" data-setting="suggestions.channelId">
+          <option value="">-- Select Channel --</option>
+          <% guild.channels.cache.filter(c => c.type === 0).each(ch => { %>
+            <option value="<%= ch.id %>" <%= settings.suggestions?.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+          <% }); %>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Server Info</h3>
+      <div class="info-box">
+        <p><strong>Server ID:</strong> <%= guild.id %></p>
+        <p><strong>Members:</strong> <%= guild.memberCount %></p>
+        <p><strong>Channels:</strong> <%= guild.channels.cache.size %></p>
+        <p><strong>Roles:</strong> <%= guild.roles.cache.size %></p>
+        <p><strong>Created:</strong> <%= guild.createdAt.toLocaleDateString() %></p>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Danger Zone</h3>
+      <p class="text-muted">Reset all bot settings for this server. This cannot be undone.</p>
+      <button class="btn btn-danger" onclick="if(confirm('Are you sure? This will reset ALL settings!')) { alert('Use /reset in Discord to reset settings.'); }">Reset All Settings</button>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

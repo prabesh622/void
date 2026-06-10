@@ -1,0 +1,25 @@
+{
+  "name": "void-bot",
+  "version": "2.0.0",
+  "description": "Professional all-in-one Discord bot with dashboard, AI, and 15+ feature modules",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.17.3",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "@supabase/supabase-js": "^2.49.1",
+    "openai": "^4.77.0",
+    "passport": "^0.7.0",
+    "passport-discord": "^0.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "ISC"
+}

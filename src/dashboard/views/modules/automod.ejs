@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - AutoMod</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>🤖 AutoMod</h2>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="automod.enabled" <%= settings.automod?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Anti-Spam</h3>
+      <p class="text-muted">Detect and punish message spam.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="automod.antiSpam" <%= settings.automod?.antiSpam ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Anti-Link</h3>
+      <p class="text-muted">Block unauthorized links.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="automod.antiLink" <%= settings.automod?.antiLink ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Anti-Caps</h3>
+      <p class="text-muted">Limit excessive caps in messages.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="automod.antiCaps" <%= settings.automod?.antiCaps ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+      <div class="form-group">
+        <label>Caps Threshold (%)</label>
+        <input type="number" class="form-input" value="<%= settings.automod?.capsThreshold || 70 %>" data-guild="<%= guild.id %>" data-setting="automod.capsThreshold" min="30" max="100">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Anti-Mention Spam</h3>
+      <p class="text-muted">Block excessive mentions in a single message.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="automod.antiMentionSpam" <%= settings.automod?.antiMentionSpam ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+      <div class="form-group">
+        <label>Mention Limit</label>
+        <input type="number" class="form-input" value="<%= settings.automod?.mentionSpamLimit || 5 %>" data-guild="<%= guild.id %>" data-setting="automod.mentionSpamLimit" min="2" max="20">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Bad Words</h3>
+      <p class="text-muted">Comma-separated list of banned words.</p>
+      <textarea class="form-textarea" data-guild="<%= guild.id %>" data-setting="automod.badWords" rows="3"><%= (settings.automod?.badWords || []).join(', ') %></textarea>
+    </div>
+
+    <div class="settings-section">
+      <h3>Log Channel</h3>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="automod.logChannel">
+        <option value="">-- Select Channel --</option>
+        <% guild.channels.cache.filter(c => c.type === 0).each(ch => { %>
+          <option value="<%= ch.id %>" <%= settings.automod?.logChannel === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

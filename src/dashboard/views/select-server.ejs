@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Void Bot - Select Server</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include layouts/navbar %>
+  <div class="container">
+    <h2>Select a Server</h2>
+    <% if (guilds.length === 0) { %>
+      <p class="text-muted">No servers found. Make sure the bot is in your server and you have Manage Server permission.</p>
+    <% } else { %>
+      <div class="server-grid">
+        <% guilds.forEach(g => { %>
+          <a href="/dashboard/<%= g.id %>" class="server-card">
+            <% if (g.icon) { %>
+              <img src="https://cdn.discordapp.com/icons/<%= g.id %>/<%= g.icon %>.png" alt="" class="server-icon">
+            <% } else { %>
+              <div class="server-icon-placeholder"><%= g.name.charAt(0) %></div>
+            <% } %>
+            <span class="server-name"><%= g.name %></span>
+          </a>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - Verification</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>✅ Verification</h2>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="verification.enabled" <%= settings.verification?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Verification Type</h3>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="verification.type">
+        <option value="button" <%= settings.verification?.type === 'button' ? 'selected' : '' %>>Button Verification</option>
+        <option value="captcha" <%= settings.verification?.type === 'captcha' ? 'selected' : '' %>>Captcha (Math)</option>
+        <option value="both" <%= settings.verification?.type === 'both' ? 'selected' : '' %>>Both</option>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Verification Channel</h3>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="verification.channelId">
+        <option value="">-- Select Channel --</option>
+        <% guild.channels.cache.filter(c => c.type === 0).each(ch => { %>
+          <option value="<%= ch.id %>" <%= settings.verification?.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Verified Role</h3>
+      <p class="text-muted">Role given after successful verification.</p>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="verification.verifiedRole">
+        <option value="">-- Select Role --</option>
+        <% guild.roles.cache.filter(r => !r.managed && r.name !== '@everyone').each(r => { %>
+          <option value="<%= r.id %>" <%= settings.verification?.verifiedRole === r.id ? 'selected' : '' %>><%= r.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Anti-Alt</h3>
+      <p class="text-muted">Block new accounts from joining.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="verification.antiAlt" <%= settings.verification?.antiAlt ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+      <div class="form-group">
+        <label>Min Account Age (days)</label>
+        <input type="number" class="form-input" value="<%= settings.verification?.minAccountAge || 0 %>" data-guild="<%= guild.id %>" data-setting="verification.minAccountAge" min="0" max="365">
+      </div>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

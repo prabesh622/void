@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - Welcome</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>👋 Welcome</h2>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="welcome.enabled" <%= settings.welcome?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Welcome Channel</h3>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="welcome.channelId">
+        <option value="">-- Select Channel --</option>
+        <% guild.channels.cache.filter(c => c.type === 0).each(ch => { %>
+          <option value="<%= ch.id %>" <%= settings.welcome?.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Welcome Message</h3>
+      <p class="text-muted">Variables: {user}, {server}, {membercount}</p>
+      <textarea class="form-textarea" data-guild="<%= guild.id %>" data-setting="welcome.welcomeMessage" rows="3"><%= settings.welcome?.welcomeMessage || 'Welcome {user} to {server}!' %></textarea>
+    </div>
+
+    <div class="settings-section">
+      <h3>Goodbye Message</h3>
+      <textarea class="form-textarea" data-guild="<%= guild.id %>" data-setting="welcome.goodbyeMessage" rows="3"><%= settings.welcome?.goodbyeMessage || '{user} has left the server.' %></textarea>
+    </div>
+
+    <div class="settings-section">
+      <h3>Auto Role</h3>
+      <p class="text-muted">Automatically assign this role to new members.</p>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="welcome.autoRole">
+        <option value="">-- None --</option>
+        <% guild.roles.cache.filter(r => !r.managed && r.name !== '@everyone').each(r => { %>
+          <option value="<%= r.id %>" <%= settings.welcome?.autoRole === r.id ? 'selected' : '' %>><%= r.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Welcome Image</h3>
+      <p class="text-muted">Show a welcome banner image in the embed.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="welcome.welcomeImage" <%= settings.welcome?.welcomeImage ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

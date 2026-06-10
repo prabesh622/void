@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include layouts/navbar %>
+  <div class="container">
+    <div class="dashboard-header">
+      <% if (guild.iconURL()) { %>
+        <img src="<%= guild.iconURL({ size: 64 }) %>" alt="" class="guild-icon">
+      <% } else { %>
+        <div class="guild-icon-placeholder"><%= guild.name.charAt(0) %></div>
+      <% } %>
+      <div>
+        <h2><%= guild.name %></h2>
+        <p class="text-muted"><%= guild.memberCount %> members</p>
+      </div>
+    </div>
+
+    <div class="module-grid">
+      <a href="/dashboard/<%= guild.id %>/moderation" class="module-card">
+        <div class="module-icon">🔨</div>
+        <h3>Moderation</h3>
+        <p>Ban, kick, mute, warnings</p>
+        <span class="badge <%= settings.moderation?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.moderation?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/automod" class="module-card">
+        <div class="module-icon">🤖</div>
+        <h3>AutoMod</h3>
+        <p>Anti-spam, filters, bad words</p>
+        <span class="badge <%= settings.automod?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.automod?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/welcome" class="module-card">
+        <div class="module-icon">👋</div>
+        <h3>Welcome</h3>
+        <p>Welcome/goodbye messages, auto-role</p>
+        <span class="badge <%= settings.welcome?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.welcome?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/logs" class="module-card">
+        <div class="module-icon">📋</div>
+        <h3>Logs</h3>
+        <p>Message, member, voice logging</p>
+        <span class="badge <%= settings.logging?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.logging?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/tickets" class="module-card">
+        <div class="module-icon">🎫</div>
+        <h3>Tickets</h3>
+        <p>Support tickets, panels, transcripts</p>
+        <span class="badge <%= settings.tickets?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.tickets?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/leveling" class="module-card">
+        <div class="module-icon">⭐</div>
+        <h3>Leveling</h3>
+        <p>XP, ranks, voice XP, rewards</p>
+        <span class="badge <%= settings.leveling?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.leveling?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/economy" class="module-card">
+        <div class="module-icon">💰</div>
+        <h3>Economy</h3>
+        <p>Wallet, daily, work, payments</p>
+        <span class="badge <%= settings.economy?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.economy?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/giveaway" class="module-card">
+        <div class="module-icon">🎉</div>
+        <h3>Giveaways</h3>
+        <p>Start, end, reroll giveaways</p>
+        <span class="badge <%= settings.giveaways?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.giveaways?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/ai" class="module-card">
+        <div class="module-icon">🧠</div>
+        <h3>AI Chat</h3>
+        <p>GPT chat, personalities, channels</p>
+        <span class="badge <%= settings.ai?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.ai?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/security" class="module-card">
+        <div class="module-icon">🛡️</div>
+        <h3>Security</h3>
+        <p>Anti-raid, anti-nuke, scam links</p>
+        <span class="badge <%= settings.security?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.security?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/verification" class="module-card">
+        <div class="module-icon">✅</div>
+        <h3>Verification</h3>
+        <p>Captcha, anti-alt, verify role</p>
+        <span class="badge <%= settings.verification?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.verification?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/reaction-roles" class="module-card">
+        <div class="module-icon">🎭</div>
+        <h3>Reaction Roles</h3>
+        <p>Button & select menu roles</p>
+        <span class="badge <%= settings.reactionRoles?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.reactionRoles?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/custom-commands" class="module-card">
+        <div class="module-icon">⚡</div>
+        <h3>Custom Commands</h3>
+        <p>Auto-responses, triggers</p>
+        <span class="badge <%= settings.customCommands?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.customCommands?.enabled ? 'Enabled' : 'Disabled' %></span>
+      </a>
+      <a href="/dashboard/<%= guild.id %>/settings" class="module-card">
+        <div class="module-icon">⚙️</div>
+        <h3>Settings</h3>
+        <p>General server settings</p>
+        <span class="badge badge-on">Active</span>
+      </a>
+    </div>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

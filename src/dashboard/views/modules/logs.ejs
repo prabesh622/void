@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - Logs</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>📋 Logs</h2>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="logging.enabled" <%= settings.logging?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Log Channel</h3>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="logging.channelId">
+        <option value="">-- Select Channel --</option>
+        <% guild.channels.cache.filter(c => c.type === 0).each(ch => { %>
+          <option value="<%= ch.id %>" <%= settings.logging?.channelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Log Types</h3>
+      <p class="text-muted">Toggle individual log events.</p>
+      <div class="toggle-grid">
+        <% const logTypes = [
+          ['messageEdit', 'Message Edit'], ['messageDelete', 'Message Delete'],
+          ['memberJoin', 'Member Join'], ['memberLeave', 'Member Leave'],
+          ['voice', 'Voice State'], ['channelCreate', 'Channel Create'],
+          ['channelDelete', 'Channel Delete'], ['roleCreate', 'Role Create'],
+          ['roleDelete', 'Role Delete'], ['roleUpdate', 'Role Update'],
+          ['moderation', 'Moderation'], ['serverUpdate', 'Server Update']
+        ]; %>
+        <% logTypes.forEach(([key, label]) => { %>
+          <div class="toggle-row">
+            <span><%= label %></span>
+            <label class="toggle toggle-sm">
+              <input type="checkbox" data-guild="<%= guild.id %>" data-setting="logging.<%= key %>" <%= settings.logging?.[key] !== false ? 'checked' : '' %>>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        <% }); %>
+      </div>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

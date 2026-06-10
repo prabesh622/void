@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - Security</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>🛡️ Security</h2>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="security.enabled" <%= settings.security?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Anti-Raid</h3>
+      <p class="text-muted">Detect mass joins and auto-punish.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="security.antiRaid" <%= settings.security?.antiRaid ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Threshold (joins)</label>
+          <input type="number" class="form-input" value="<%= settings.security?.raidThreshold || 10 %>" data-guild="<%= guild.id %>" data-setting="security.raidThreshold" min="3" max="50">
+        </div>
+        <div class="form-group">
+          <label>Timeframe (ms)</label>
+          <input type="number" class="form-input" value="<%= settings.security?.raidTimeframe || 10000 %>" data-guild="<%= guild.id %>" data-setting="security.raidTimeframe" min="3000" max="60000">
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Anti-Nuke</h3>
+      <p class="text-muted">Detect mass channel/role deletions.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="security.antiNuke" <%= settings.security?.antiNuke ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+      <div class="form-group">
+        <label>Delete Threshold</label>
+        <input type="number" class="form-input" value="<%= settings.security?.nukeThreshold || 5 %>" data-guild="<%= guild.id %>" data-setting="security.nukeThreshold" min="2" max="20">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Scam Link Detection</h3>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="security.scamLinks" <%= settings.security?.scamLinks !== false ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Auto-Ban</h3>
+      <p class="text-muted">Automatically ban detected threats.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="security.autoBan" <%= settings.security?.autoBan ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Security Log Channel</h3>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="security.logChannel">
+        <option value="">-- Select Channel --</option>
+        <% guild.channels.cache.filter(c => c.type === 0).each(ch => { %>
+          <option value="<%= ch.id %>" <%= settings.security?.logChannel === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

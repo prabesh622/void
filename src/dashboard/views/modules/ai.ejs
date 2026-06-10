@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - AI Chat</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>🧠 AI Chat</h2>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="ai.enabled" <%= settings.ai?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Personality</h3>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="ai.personality">
+        <% ['friendly', 'professional', 'sarcastic', 'helpful', 'creative', 'strict', 'custom'].forEach(p => { %>
+          <option value="<%= p %>" <%= settings.ai?.personality === p ? 'selected' : '' %>><%= p.charAt(0).toUpperCase() + p.slice(1) %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Custom Prompt</h3>
+      <p class="text-muted">Only used when personality is set to "custom".</p>
+      <textarea class="form-textarea" data-guild="<%= guild.id %>" data-setting="ai.customPrompt" rows="3"><%= settings.ai?.customPrompt || '' %></textarea>
+    </div>
+
+    <div class="settings-section">
+      <h3>Mention Mode</h3>
+      <p class="text-muted">Only respond when the bot is mentioned.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="ai.mentionMode" <%= settings.ai?.mentionMode ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>NSFW Filter</h3>
+      <p class="text-muted">Block inappropriate content in AI responses.</p>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-setting="ai.nsfwFilter" <%= settings.ai?.nsfwFilter !== false ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Cooldown (seconds)</h3>
+      <input type="number" class="form-input" value="<%= settings.ai?.cooldown || 5 %>" data-guild="<%= guild.id %>" data-setting="ai.cooldown" min="1" max="60">
+    </div>
+
+    <div class="settings-section">
+      <h3>Max History</h3>
+      <p class="text-muted">Number of messages to remember per user.</p>
+      <input type="number" class="form-input" value="<%= settings.ai?.maxHistory || 10 %>" data-guild="<%= guild.id %>" data-setting="ai.maxHistory" min="1" max="50">
+    </div>
+
+    <div class="settings-section">
+      <h3>AI Channels</h3>
+      <div class="info-box">
+        <p><strong>Active channels:</strong> <%= settings.ai?.channels?.length || 0 %></p>
+        <p class="text-muted">Use <code>/aichannel add</code> in Discord to manage AI channels.</p>
+      </div>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

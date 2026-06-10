@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - Tickets</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>🎫 Tickets</h2>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="tickets.enabled" <%= settings.tickets?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Ticket Category</h3>
+      <p class="text-muted">Category where new tickets are created.</p>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="tickets.categoryId">
+        <option value="">-- Select Category --</option>
+        <% guild.channels.cache.filter(c => c.type === 4).each(ch => { %>
+          <option value="<%= ch.id %>" <%= settings.tickets?.categoryId === ch.id ? 'selected' : '' %>><%= ch.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Staff Role</h3>
+      <p class="text-muted">Role that can view and respond to tickets.</p>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="tickets.staffRoleId">
+        <option value="">-- Select Role --</option>
+        <% guild.roles.cache.filter(r => !r.managed && r.name !== '@everyone').each(r => { %>
+          <option value="<%= r.id %>" <%= settings.tickets?.staffRoleId === r.id ? 'selected' : '' %>><%= r.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Transcript Channel</h3>
+      <p class="text-muted">Channel where ticket transcripts are sent.</p>
+      <select class="form-select" data-guild="<%= guild.id %>" data-setting="tickets.transcriptChannelId">
+        <option value="">-- Select Channel --</option>
+        <% guild.channels.cache.filter(c => c.type === 0).each(ch => { %>
+          <option value="<%= ch.id %>" <%= settings.tickets?.transcriptChannelId === ch.id ? 'selected' : '' %>>#<%= ch.name %></option>
+        <% }); %>
+      </select>
+    </div>
+
+    <div class="settings-section">
+      <h3>Info</h3>
+      <div class="info-box">
+        <p><strong>Panels configured:</strong> <%= settings.tickets?.panels?.length || 0 %></p>
+        <p><strong>Next ticket ID:</strong> #<%= settings.tickets?.nextTicketId || 1 %></p>
+        <p class="text-muted">Use <code>/ticket setup</code> in Discord to create ticket panels.</p>
+      </div>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

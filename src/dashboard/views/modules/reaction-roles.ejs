@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= guild.name %> - Reaction Roles</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <% include ../layouts/navbar %>
+  <div class="container">
+    <div class="module-header">
+      <a href="/dashboard/<%= guild.id %>" class="back-link">&larr; Back</a>
+      <h2>🎭 Reaction Roles</h2>
+      <label class="toggle">
+        <input type="checkbox" data-guild="<%= guild.id %>" data-feature="reactionRoles.enabled" <%= settings.reactionRoles?.enabled ? 'checked' : '' %>>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="settings-section">
+      <h3>Info</h3>
+      <div class="info-box">
+        <p>Reaction roles are configured via Discord commands.</p>
+        <p class="text-muted">Use <code>/rr create</code> to set up button or select menu reaction roles.</p>
+        <p class="text-muted">Use <code>/rr list</code> to see all configured reaction roles.</p>
+        <p class="text-muted">Use <code>/rr delete</code> to remove a reaction role panel.</p>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Supported Types</h3>
+      <div class="command-list">
+        <div class="command-item">Button roles - Click a button to get/remove a role</div>
+        <div class="command-item">Select menu roles - Choose roles from a dropdown</div>
+        <div class="command-item">Multi-select - Pick multiple roles at once</div>
+      </div>
+    </div>
+    <button class="btn btn-primary save-btn" onclick="saveSettings('<%= guild.id %>')">Save Changes</button>
+  </div>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
