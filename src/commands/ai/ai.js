@@ -1,97 +1,50 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
-const GuildSettings = require('../../schemas/GuildSettings');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const aiService = require('../../services/aiService');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('ai')
-    .setDescription('Manage AI chat system')
-    .addSubcommand(sub => sub.setName('enable').setDescription('Enable AI chat'))
-    .addSubcommand(sub => sub.setName('disable').setDescription('Disable AI chat'))
-    .addSubcommand(sub => sub.setName('setup').setDescription('View AI settings'))
-    .addSubcommand(sub => sub
-      .setName('mode')
-      .setDescription('Set AI interaction mode')
-      .addStringOption(opt => opt.setName('mode').setDescription('Mode').setRequired(true)
-        .addChoices({ name: 'Mention Only', value: 'mention' }, { name: 'Auto Reply', value: 'auto' }))
-    )
-    .addSubcommand(sub => sub
-      .setName('cooldown')
-      .setDescription('Set AI response cooldown (seconds)')
-      .addIntegerOption(opt => opt.setName('seconds').setDescription('Cooldown in seconds').setMinValue(1).setMaxValue(60).setRequired(true))
-    )
-    .addSubcommand(sub => sub
-      .setName('nsfw')
-      .setDescription('Toggle NSFW filter')
-      .addBooleanOption(opt => opt.setName('enabled').setDescription('Enable or disable').setRequired(true))
-    )
-    .addSubcommand(sub => sub
-      .setName('custom')
-      .setDescription('Set a custom system prompt')
-      .addStringOption(opt => opt.setName('prompt').setDescription('Custom system prompt').setRequired(true))
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    .setDescription('Ask the AI anything (gaming knowledge, general, code, etc.)')
+    .addStringOption(o => o.setName('question').setDescription('Your question').setRequired(true))
+    .addStringOption(o => o.setName('personality').setDescription('AI personality').setRequired(false)
+      .addChoices(
+        { name: 'Gamer (default)', value: 'gamer' },
+        { name: 'Friendly', value: 'friendly' },
+        { name: 'Funny', value: 'funny' },
+        { name: 'Anime', value: 'anime' },
+        { name: 'Professional', value: 'professional' },
+      )),
 
   async execute(interaction) {
-    const sub = interaction.options.getSubcommand();
-    const guildId = interaction.guild.id;
+    const question = interaction.options.getString('question');
+    const personality = interaction.options.getString('personality') || 'gamer';
 
-    let settings = await GuildSettings.findOne({ guildId });
-    if (!settings) settings = await GuildSettings.create({ guildId });
+    await interaction.deferReply();
 
-    if (sub === 'enable') {
-      await GuildSettings.updateOne({ guildId }, { 'ai.enabled': true });
-      interaction.reply({ embeds: [successEmbed('AI Chat', 'AI chat has been **enabled**. Add channels with `/aichannel add`.')] });
+    if (!aiService.gemini) {
+      return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xff4757).setDescription('AI is not configured. Please set your GEMINI_API_KEY in the environment.')] });
     }
 
-    if (sub === 'disable') {
-      await GuildSettings.updateOne({ guildId }, { 'ai.enabled': false });
-      interaction.reply({ embeds: [successEmbed('AI Chat', 'AI chat has been **disabled**.')] });
-    }
+    const systemPrompt = aiService.personalities[personality] || aiService.personalities.gamer;
 
-    if (sub === 'setup') {
-      const ai = settings.ai;
-      interaction.reply({
-        embeds: [new EmbedBuilder()
-          .setColor(0x3b82f6)
-          .setTitle('AI Chat Settings')
-          .addFields(
-            { name: 'Status', value: ai.enabled ? '✅ Enabled' : '❌ Disabled', inline: true },
-            { name: 'Mode', value: ai.mentionMode ? 'Mention Only' : 'Auto Reply', inline: true },
-            { name: 'Personality', value: ai.personality || 'friendly', inline: true },
-            { name: 'Cooldown', value: `${ai.cooldown || 5}s`, inline: true },
-            { name: 'NSFW Filter', value: ai.nsfwFilter ? '✅ On' : '❌ Off', inline: true },
-            { name: 'Max History', value: `${ai.maxHistory || 10} messages`, inline: true },
-            { name: 'Channels', value: ai.channels?.length ? ai.channels.map(c => `<#${c}>`).join(', ') : 'None', inline: false },
-            { name: 'Custom Prompt', value: ai.customPrompt ? '✅ Set' : '❌ Not set', inline: false },
-          )
-          .setTimestamp()
-        ]
-      });
-    }
+    try {
+      const reply = await aiService.getGeminiResponse(question, `${systemPrompt}\nUser: ${interaction.user.username}. Keep responses concise and engaging.`);
 
-    if (sub === 'mode') {
-      const mode = interaction.options.getString('mode');
-      await GuildSettings.updateOne({ guildId }, { 'ai.mentionMode': mode === 'mention', 'ai.autoReply': mode === 'auto' });
-      interaction.reply({ embeds: [successEmbed('AI Mode', `AI mode set to **${mode === 'mention' ? 'Mention Only' : 'Auto Reply'}**.`)] });
-    }
+      if (!reply) {
+        return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xff4757).setDescription('AI failed to generate a response. Please try again in a moment. (Rate limited)')] });
+      }
 
-    if (sub === 'cooldown') {
-      const seconds = interaction.options.getInteger('seconds');
-      await GuildSettings.updateOne({ guildId }, { 'ai.cooldown': seconds });
-      interaction.reply({ embeds: [successEmbed('AI Cooldown', `AI cooldown set to **${seconds}s**.`)] });
-    }
+      const embed = new EmbedBuilder()
+        .setColor(0x4285f4)
+        .setTitle('🎮 AI Response')
+        .setDescription(`**Q:** ${question.slice(0, 500)}\n\n**A:** ${reply.slice(0, 3800)}`)
+        .setFooter({ text: `Gemini • ${personality} personality • ${interaction.user.tag}` })
+        .setTimestamp();
 
-    if (sub === 'nsfw') {
-      const enabled = interaction.options.getBoolean('enabled');
-      await GuildSettings.updateOne({ guildId }, { 'ai.nsfwFilter': enabled });
-      interaction.reply({ embeds: [successEmbed('AI NSFW Filter', `NSFW filter **${enabled ? 'enabled' : 'disabled'}**.`)] });
-    }
-
-    if (sub === 'custom') {
-      const prompt = interaction.options.getString('prompt');
-      await GuildSettings.updateOne({ guildId }, { 'ai.customPrompt': prompt, 'ai.personality': 'custom' });
-      interaction.reply({ embeds: [successEmbed('AI Custom Prompt', 'Custom system prompt has been set.')] });
+      interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      console.error('[AI] /ai error:', err.message);
+      interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xff4757).setDescription('An error occurred. Please try again later.')] });
     }
   }
 };

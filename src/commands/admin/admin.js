@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
-const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
+const { successEmbed, errorEmbed, infoEmbed, COLORS, panelEmbed, moduleList } = require('../../utils/embeds');
 const GuildSettings = require('../../schemas/GuildSettings');
 const { isOwner, isAdmin } = require('./owner');
 
@@ -18,57 +18,101 @@ module.exports = {
     }
 
     const settings = await GuildSettings.findOne({ guildId }).catch(() => null);
+
+    // ── Server Stats ──
     const members = interaction.guild.memberCount;
+    const online = interaction.guild.members.cache.filter(m => m.presence?.status !== 'offline').size;
+    const bots = interaction.guild.members.cache.filter(m => m.user.bot).size;
     const channels = interaction.guild.channels.cache.size;
     const roles = interaction.guild.roles.cache.size;
     const emojis = interaction.guild.emojis.cache.size;
     const boosts = interaction.guild.premiumSubscriptionCount || 0;
     const boostLevel = interaction.guild.premiumTier;
 
-    // Module status
-    const mod = settings ? [
-      `Moderation: ${settings.moderation?.enabled ? '✅' : '❌'}`,
-      `AutoMod: ${settings.automod?.enabled ? '✅' : '❌'}`,
-      `Welcome: ${settings.welcome?.enabled ? '✅' : '❌'}`,
-      `Leveling: ${settings.leveling?.enabled ? '✅' : '❌'}`,
-      `Economy: ${settings.economy?.enabled ? '✅' : '❌'}`,
-      `Tickets: ${settings.tickets?.enabled ? '✅' : '❌'}`,
-      `AI Chat: ${settings.ai?.enabled ? '✅' : '❌'}`,
-      `Security: ${settings.security?.enabled ? '✅' : '❌'}`,
-    ].join('\n') : 'Settings not initialized';
+    // ── Module Status ──
+    const modules = settings ? [
+      { name: 'Moderation', emoji: '⚖️', enabled: settings.moderation?.enabled },
+      { name: 'AutoMod', emoji: '🤖', enabled: settings.automod?.enabled },
+      { name: 'Welcome', emoji: '👋', enabled: settings.welcome?.enabled },
+      { name: 'Leveling', emoji: '📈', enabled: settings.leveling?.enabled },
+      { name: 'Economy', emoji: '💰', enabled: settings.economy?.enabled },
+      { name: 'Tickets', emoji: '🎫', enabled: settings.tickets?.enabled },
+      { name: 'AI Chat', emoji: '🧠', enabled: settings.ai?.enabled },
+      { name: 'AI Warn', emoji: '🚨', enabled: settings.aiWarning?.enabled },
+      { name: 'Security', emoji: '🔒', enabled: settings.security?.enabled },
+      { name: 'Logging', emoji: '📝', enabled: settings.logging?.enabled },
+    ] : [];
 
+    const disabledCommands = settings?.disabledCommands || [];
+    const disabledCategories = settings?.disabledCategories || [];
+
+    // ── Build Embed ──
     const embed = new EmbedBuilder()
-      .setColor(0x3b82f6)
-      .setTitle('🛡️ Admin Panel')
-      .setDescription(`**Server:** ${interaction.guild.name}\n**Access Level:** ${isOwner(userId) ? '👑 Owner' : '🛡️ Admin'}`)
-      .addFields(
-        { name: '📊 Server Info', value: `Members: **${members}**\nChannels: **${channels}**\nRoles: **${roles}**\nEmojis: **${emojis}**\nBoosts: **${boosts}** (${boostLevel})`, inline: true },
-        { name: '🔧 Modules', value: mod, inline: true },
-        { name: '🛠️ Quick Actions', value: 'Use the buttons below to manage modules and server settings.', inline: false },
+      .setColor(COLORS.admin)
+      .setTitle('🛡️ Server Control Panel')
+      .setDescription(
+        `> **Server:** ${interaction.guild.name}\n` +
+        `> **Access:** ${isOwner(userId) ? '👑 Owner' : '🛡️ Admin'}\n` +
+        `> **Disabled:** ${disabledCategories.length} categories, ${disabledCommands.length} commands`
       )
-      .setFooter({ text: `Admin Panel | ${interaction.user.tag}` })
-      .setTimestamp();
+      .addFields(
+        {
+          name: '📊 Server Overview',
+          value: [
+            `👥 **${members}** members (${online} online)`,
+            `🤖 **${bots}** bots`,
+            `💬 **${channels}** channels`,
+            `🎭 **${roles}** roles`,
+            `😀 **${emojis}** emojis`,
+            `🚀 **${boosts}** boosts (Tier ${boostLevel})`,
+          ].join('\n'),
+          inline: true,
+        },
+        {
+          name: '🔧 Module Status',
+          value: settings ? modules.map(m => `${m.enabled ? '🟢' : '🔴'} ${m.emoji} **${m.name}**`).join('\n') : 'Not initialized',
+          inline: true,
+        },
+        {
+          name: '⚡ Quick Actions',
+          value: [
+            '• Use **/features status** to see all commands',
+            '• Use **/features toggle** to enable/disable categories',
+            '• Use **/features command** to toggle individual commands',
+            '• Buttons below toggle core modules',
+          ].join('\n'),
+          inline: false,
+        },
+      )
+      .setFooter({ text: `Admin Panel • ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+      .setTimestamp()
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }));
 
+    // ── Row 1: Core Module Toggles ──
     const row1 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('admin_togglemod').setLabel('Toggle Mod').setStyle(ButtonStyle.Primary).setEmoji('⚖️'),
-      new ButtonBuilder().setCustomId('admin_toggleautomod').setLabel('Toggle AutoMod').setStyle(ButtonStyle.Primary).setEmoji('🤖'),
-      new ButtonBuilder().setCustomId('admin_togglewelcome').setLabel('Toggle Welcome').setStyle(ButtonStyle.Primary).setEmoji('👋'),
-      new ButtonBuilder().setCustomId('admin_toggleleveling').setLabel('Toggle Leveling').setStyle(ButtonStyle.Primary).setEmoji('📈'),
+      new ButtonBuilder().setCustomId('admin_togglemod').setLabel('Moderation').setStyle(settings?.moderation?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('⚖️'),
+      new ButtonBuilder().setCustomId('admin_toggleautomod').setLabel('AutoMod').setStyle(settings?.automod?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🤖'),
+      new ButtonBuilder().setCustomId('admin_togglewelcome').setLabel('Welcome').setStyle(settings?.welcome?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('👋'),
+      new ButtonBuilder().setCustomId('admin_toggleleveling').setLabel('Leveling').setStyle(settings?.leveling?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('📈'),
       new ButtonBuilder().setCustomId('admin_refresh').setLabel('Refresh').setStyle(ButtonStyle.Secondary).setEmoji('🔄'),
     );
 
+    // ── Row 2: Other Module Toggles ──
     const row2 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('admin_toggleeconomy').setLabel('Toggle Economy').setStyle(ButtonStyle.Primary).setEmoji('💰'),
-      new ButtonBuilder().setCustomId('admin_toggletickets').setLabel('Toggle Tickets').setStyle(ButtonStyle.Primary).setEmoji('🎫'),
-      new ButtonBuilder().setCustomId('admin_toggleai').setLabel('Toggle AI').setStyle(ButtonStyle.Primary).setEmoji('🧠'),
-      new ButtonBuilder().setCustomId('admin_togglesecurity').setLabel('Toggle Security').setStyle(ButtonStyle.Primary).setEmoji('🔒'),
-      new ButtonBuilder().setCustomId('admin_emojis').setLabel('Server Emojis').setStyle(ButtonStyle.Secondary).setEmoji('😀'),
+      new ButtonBuilder().setCustomId('admin_toggleeconomy').setLabel('Economy').setStyle(settings?.economy?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('💰'),
+      new ButtonBuilder().setCustomId('admin_toggletickets').setLabel('Tickets').setStyle(settings?.tickets?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🎫'),
+      new ButtonBuilder().setCustomId('admin_toggleai').setLabel('AI Chat').setStyle(settings?.ai?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🧠'),
+      new ButtonBuilder().setCustomId('admin_toggleaiwarn').setLabel('AI Warn').setStyle(settings?.aiWarning?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🚨'),
+      new ButtonBuilder().setCustomId('admin_features').setLabel('Features').setStyle(ButtonStyle.Primary).setEmoji('📋'),
     );
 
+    // ── Row 3: Utility Actions ──
     const row3 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('admin_togglesecurity').setLabel('Security').setStyle(settings?.security?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🔒'),
       new ButtonBuilder().setCustomId('admin_purgeall').setLabel('Purge Channel').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
       new ButtonBuilder().setCustomId('admin_serverstats').setLabel('Server Stats').setStyle(ButtonStyle.Primary).setEmoji('📊'),
       new ButtonBuilder().setCustomId('admin_rolelist').setLabel('Role List').setStyle(ButtonStyle.Secondary).setEmoji('📋'),
+      new ButtonBuilder().setCustomId('admin_refresh').setLabel('Refresh').setStyle(ButtonStyle.Secondary).setEmoji('🔄'),
     );
 
     interaction.reply({ embeds: [embed], components: [row1, row2, row3], ephemeral: true });

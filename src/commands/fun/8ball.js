@@ -1,49 +1,44 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
-const responses = [
-  'Yes, definitely!',
-  'Absolutely!',
-  'Without a doubt.',
-  'Yes, you can count on it.',
-  'Most likely.',
-  'Outlook good.',
-  'Signs point to yes.',
-  'As I see it, yes.',
-  'It is certain.',
-  'You may rely on it.',
-  'Reply hazy, try again.',
-  'Ask again later.',
-  'Better not tell you now.',
-  'Cannot predict now.',
-  'Concentrate and ask again.',
-  'Don\'t count on it.',
-  'My reply is no.',
-  'My sources say no.',
-  'Outlook not so good.',
-  'Very doubtful.',
-  'No way!',
-  'Forget about it.',
-  'Not a chance.',
-  'I highly doubt it.',
+const RESPONSES = [
+  { text: 'It is certain.', type: 'yes' },
+  { text: 'It is decidedly so.', type: 'yes' },
+  { text: 'Without a doubt.', type: 'yes' },
+  { text: 'Yes, definitely.', type: 'yes' },
+  { text: 'You may rely on it.', type: 'yes' },
+  { text: 'As I see it, yes.', type: 'yes' },
+  { text: 'Most likely.', type: 'yes' },
+  { text: 'Outlook good.', type: 'yes' },
+  { text: 'Yes.', type: 'yes' },
+  { text: 'Signs point to yes.', type: 'yes' },
+  { text: 'Reply hazy, try again.', type: 'maybe' },
+  { text: 'Ask again later.', type: 'maybe' },
+  { text: 'Better not tell you now.', type: 'maybe' },
+  { text: 'Cannot predict now.', type: 'maybe' },
+  { text: 'Concentrate and ask again.', type: 'maybe' },
+  { text: "Don't count on it.", type: 'no' },
+  { text: 'My reply is no.', type: 'no' },
+  { text: 'My sources say no.', type: 'no' },
+  { text: 'Outlook not so good.', type: 'no' },
+  { text: 'Very doubtful.', type: 'no' },
 ];
+
+const COLORS = { yes: 0x00d26a, maybe: 0xffa502, no: 0xff4757 };
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('8ball')
-    .setDescription('Ask the magic 8-ball a question')
-    .addStringOption(opt => opt.setName('question').setDescription('Your question').setRequired(true)),
+    .setDescription('Ask the Magic 8-Ball a question')
+    .addStringOption(o => o.setName('question').setDescription('Your yes/no question').setRequired(true)),
 
   async execute(interaction) {
     const question = interaction.options.getString('question');
-    const answer = responses[Math.floor(Math.random() * responses.length)];
+    const response = RESPONSES[Math.floor(Math.random() * RESPONSES.length)];
 
     const embed = new EmbedBuilder()
-      .setColor(0x6c5ce7)
+      .setColor(COLORS[response.type])
       .setTitle('🎱 Magic 8-Ball')
-      .addFields(
-        { name: 'Question', value: question, inline: false },
-        { name: 'Answer', value: answer, inline: false },
-      )
+      .setDescription(`**Question:** ${question}\n\n**Answer:** ${response.text}`)
       .setFooter({ text: `Asked by ${interaction.user.tag}` })
       .setTimestamp();
 

@@ -17,6 +17,7 @@ function loadCommands(client) {
       try {
         const command = require(path.join(categoryPath, file));
         if (command.data && command.execute) {
+          command.data.category = category;
           client.commands.set(command.data.name, command);
           client.commandArray.push(command.data.toJSON());
           console.log(`  [CMD] ${command.data.name} (${category})`);

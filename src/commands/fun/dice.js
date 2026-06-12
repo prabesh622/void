@@ -3,9 +3,9 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('dice')
-    .setDescription('Roll a dice')
-    .addIntegerOption(opt => opt.setName('sides').setDescription('Number of sides (default 6, max 100)').setMinValue(2).setMaxValue(100).setRequired(false))
-    .addIntegerOption(opt => opt.setName('count').setDescription('Number of dice (default 1, max 10)').setMinValue(1).setMaxValue(10).setRequired(false)),
+    .setDescription('Roll dice')
+    .addIntegerOption(o => o.setName('sides').setDescription('Number of sides (default 6)').setMinValue(2).setMaxValue(100).setRequired(false))
+    .addIntegerOption(o => o.setName('count').setDescription('Number of dice (default 1)').setMinValue(1).setMaxValue(10).setRequired(false)),
 
   async execute(interaction) {
     const sides = interaction.options.getInteger('sides') || 6;
@@ -17,12 +17,12 @@ module.exports = {
     }
 
     const total = rolls.reduce((a, b) => a + b, 0);
-    const results = count > 1 ? `\n**Total:** ${total}` : '';
+    const diceEmoji = rolls.map(r => `🎲 **${r}**`).join('  ');
 
     const embed = new EmbedBuilder()
-      .setColor(0xfdcb6e)
+      .setColor(0x6c5ce7)
       .setTitle('🎲 Dice Roll')
-      .setDescription(`Rolled **${count}d${sides}**: ${rolls.join(', ')}${results}`)
+      .setDescription(`${diceEmoji}\n\n**Total:** ${total}\n*${count}d${sides}*`)
       .setFooter({ text: `Rolled by ${interaction.user.tag}` })
       .setTimestamp();
 

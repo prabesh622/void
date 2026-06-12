@@ -29,19 +29,14 @@ console.log('[VOID BOT] Starting...');
 loadCommands(client);
 loadEvents(client);
 
-// ─── Init Supabase, then start bot + dashboard ───
+// ─── Init SQLite, then start bot + dashboard ───
 (async () => {
-  // Verify Supabase connection
+  // Initialize SQLite database (auto-creates tables)
   try {
-    const { supabase } = require('./lib/supabase');
-    const { error } = await supabase.from('guild_settings').select('id').limit(1);
-    if (error && !error.message.includes('relation') && !error.message.includes('does not exist')) {
-      console.error('[VOID BOT] Supabase connection failed:', error.message);
-    } else {
-      console.log('[VOID BOT] Connected to Supabase');
-    }
+    require('./lib/database');
+    console.log('[VOID BOT] SQLite database ready');
   } catch (err) {
-    console.error('[VOID BOT] Supabase init failed:', err.message);
+    console.error('[VOID BOT] Database init failed:', err.message);
   }
 
   // Init AI services

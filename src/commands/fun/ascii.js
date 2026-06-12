@@ -1,0 +1,101 @@
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+
+const FONTS = {
+  block: {
+    A:'████╗',B:'████╗',C:'█████╗',D:'████╗',E:'███████╗',F:'███████╗',G:'██████╗',
+    H:'██╗  ██╗',I:'██╗',J:'     ██╗',K:'██╗  ██╗',L:'██╗',M:'███╗   ███╗',N:'███╗   ██╗',
+    O:'█████╗',P:'████╗',Q:'█████╗',R:'████╗',S:'███████╗',T:'████████╗',U:'██╗   ██╗',
+    V:'██╗   ██╗',W:'██╗    ██╗',X:'██╗  ██╗',Y:'██╗   ██╗',Z:'███████╗',
+    ' ':'    ','0':'█████╗','1':'██╗','2':'████╗','3':'████╗','4':'██╗  ██╗',
+    '5':'███████╗','6':'██████╗','7':'███████╗','8':'█████╗','9':'█████╗',
+    '!':'██╗','.':'  ','?':'█████╗',
+  },
+};
+
+function toAscii(text, font = 'simple') {
+  // Simple ASCII art using block characters
+  const result = [];
+  const upper = text.toUpperCase();
+
+  // Use a simpler approach - convert each char to a big letter
+  const simpleMap = {
+    'A':'  █  \n █ █ \n█████\n█   █\n█   █',
+    'B':'████ \n█   █\n████ \n█   █\n████ ',
+    'C':' ████\n█    \n█    \n█    \n ████',
+    'D':'████ \n█   █\n█   █\n█   █\n████ ',
+    'E':'█████\n█    \n████ \n█    \n█████',
+    'F':'█████\n█    \n████ \n█    \n█    ',
+    'G':' ████\n█    \n█  ██\n█   █\n ████',
+    'H':'█   █\n█   █\n█████\n█   █\n█   █',
+    'I':'█████\n  █  \n  █  \n  █  \n█████',
+    'J':'█████\n    █\n    █\n█   █\n ███ ',
+    'K':'█   █\n█  █ \n███  \n█  █ \n█   █',
+    'L':'█    \n█    \n█    \n█    \n█████',
+    'M':'█   █\n██ ██\n█ █ █\n█   █\n█   █',
+    'N':'█   █\n██  █\n█ █ █\n█  ██\n█   █',
+    'O':' ███ \n█   █\n█   █\n█   █\n ███ ',
+    'P':'████ \n█   █\n████ \n█    \n█    ',
+    'Q':' ███ \n█   █\n█ █ █\n█  █ \n ██ █',
+    'R':'████ \n█   █\n████ \n█  █ \n█   █',
+    'S':' ████\n█    \n ███ \n    █\n████ ',
+    'T':'█████\n  █  \n  █  \n  █  \n  █  ',
+    'U':'█   █\n█   █\n█   █\n█   █\n ███ ',
+    'V':'█   █\n█   █\n█   █\n █ █ \n  █  ',
+    'W':'█   █\n█   █\n█ █ █\n██ ██\n█   █',
+    'X':'█   █\n █ █ \n  █  \n █ █ \n█   █',
+    'Y':'█   █\n █ █ \n  █  \n  █  \n  █  ',
+    'Z':'█████\n   █ \n  █  \n █   \n█████',
+    ' ':'     ',
+    '0':' ███ \n█  ██\n█ █ █\n██  █\n ███ ',
+    '1':'  █  \n ██  \n  █  \n  █  \n█████',
+    '2':' ███ \n█   █\n  ██ \n █   \n█████',
+    '3':'████ \n    █\n ███ \n    █\n████ ',
+    '4':'█   █\n█   █\n█████\n    █\n    █',
+    '5':'█████\n█    \n████ \n    █\n████ ',
+    '6':' ███ \n█    \n████ \n█   █\n ███ ',
+    '7':'█████\n    █\n   █ \n  █  \n  █  ',
+    '8':' ███ \n█   █\n ███ \n█   █\n ███ ',
+    '9':' ███ \n█   █\n ████\n    █\n ███ ',
+    '!':'  █  \n  █  \n  █  \n     \n  █  ',
+    '?':' ███ \n█   █\n  ██ \n     \n  █  ',
+    '.':'     \n     \n     \n     \n  █  ',
+    ',':'     \n     \n     \n  █  \n █   ',
+  };
+
+  // Build line by line
+  const lines = ['','','','',''];
+  for (const char of upper.slice(0, 15)) {
+    const art = simpleMap[char] || simpleMap[' '];
+    const charLines = art.split('\n');
+    for (let i = 0; i < 5; i++) {
+      lines[i] += (charLines[i] || '     ') + ' ';
+    }
+  }
+
+  return '```\n' + lines.join('\n') + '\n```';
+}
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('ascii')
+    .setDescription('Convert text to ASCII art')
+    .addStringOption(o => o.setName('text').setDescription('Text to convert (max 15 chars)').setRequired(true)),
+
+  async execute(interaction) {
+    const text = interaction.options.getString('text');
+
+    if (text.length > 15) {
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xff4757).setDescription('Text must be 15 characters or less.')], ephemeral: true });
+    }
+
+    const art = toAscii(text);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x6c5ce7)
+      .setTitle('🎨 ASCII Art')
+      .setDescription(art)
+      .setFooter({ text: `Requested by ${interaction.user.tag}` });
+
+    interaction.reply({ embeds: [embed] });
+  }
+};

@@ -1,0 +1,11 @@
+node_modules/
+data/
+.env
+.DS_Store
+*.png
+*.jpg
+*.jpeg
+*.log
+qoder/
+.git/
+.gitignore

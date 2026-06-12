@@ -12,6 +12,32 @@ module.exports = {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) return interaction.reply({ embeds: [errorEmbed('Error', 'Unknown command.')], ephemeral: true });
+
+      // ── Command Enable/Disable Check ──
+      if (interaction.guild) {
+        const settings = await GuildSettings.findOne({ guildId: interaction.guild.id }).catch(() => null);
+        if (settings) {
+          const disabledCommands = settings.disabledCommands || [];
+          const disabledCategories = settings.disabledCategories || [];
+
+          // Check if specific command is disabled
+          if (disabledCommands.includes(interaction.commandName)) {
+            return interaction.reply({
+              embeds: [errorEmbed('Command Disabled', `The command \`/${interaction.commandName}\` has been disabled on this server.`)],
+              ephemeral: true,
+            });
+          }
+
+          // Check if command category is disabled
+          if (command.data?.category && disabledCategories.includes(command.data.category)) {
+            return interaction.reply({
+              embeds: [errorEmbed('Category Disabled', `The \`${command.data.category}\` category has been disabled on this server.`)],
+              ephemeral: true,
+            });
+          }
+        }
+      }
+
       try {
         await command.execute(interaction, client);
       } catch (err) {
@@ -468,6 +494,227 @@ module.exports = {
           const rss = Math.round(memUsage.rss / 1024 / 1024);
           interaction.reply({ embeds: [new EmbedBuilder().setColor(0xff0055).setTitle('📈 Full Bot Stats').addFields({ name: 'Memory', value: `Heap: ${heap}/${total} MB\nRSS: ${rss} MB`, inline: true }, { name: 'Node.js', value: process.version, inline: true }, { name: 'Discord.js', value: require('discord.js').version, inline: true }, { name: 'Guilds', value: `${client.guilds.cache.size}`, inline: true }, { name: 'Commands', value: `${client.commands.size}`, inline: true }, { name: 'Ping', value: `${client.ws.ping}ms`, inline: true }).setTimestamp()], ephemeral: true });
         }
+
+        // === BLACKLIST USER ===
+        if (id === 'owner_blacklist') {
+          interaction.reply({ embeds: [infoEmbed('Blacklist User', 'Mention the user or paste their ID to blacklist.\nType `cancel` to cancel.')], ephemeral: true });
+          const filter = m => m.author.id === interaction.user.id;
+          const collector = interaction.channel.createMessageCollector({ filter, max: 1, time: 30000 });
+          collector.on('collect', async m => {
+            if (m.content.toLowerCase() === 'cancel') { m.reply('Cancelled.'); return; }
+            const match = m.content.match(/<@!?(\d+)>/) || m.content.match(/^(\d+)$/);
+            if (!match) { m.reply('Invalid user. Use a mention or user ID.'); return; }
+            const targetId = match[1];
+            if (targetId === OWNER_ID) { m.reply('Cannot blacklist the owner!'); return; }
+            const { blacklist } = require('../commands/admin/owner');
+            blacklist.add(targetId);
+            m.reply({ embeds: [successEmbed('Blacklisted', `User <@${targetId}> has been blacklisted from all bot features.`)] });
+          });
+        }
+
+        // === UNBLACKLIST USER ===
+        if (id === 'owner_unblacklist') {
+          interaction.reply({ embeds: [infoEmbed('Unblacklist User', 'Mention the user or paste their ID to remove from blacklist.\nType `cancel` to cancel.')], ephemeral: true });
+          const filter = m => m.author.id === interaction.user.id;
+          const collector = interaction.channel.createMessageCollector({ filter, max: 1, time: 30000 });
+          collector.on('collect', async m => {
+            if (m.content.toLowerCase() === 'cancel') { m.reply('Cancelled.'); return; }
+            const match = m.content.match(/<@!?(\d+)>/) || m.content.match(/^(\d+)$/);
+            if (!match) { m.reply('Invalid user.'); return; }
+            const { blacklist } = require('../commands/admin/owner');
+            blacklist.delete(match[1]);
+            m.reply({ embeds: [successEmbed('Unblacklisted', `User <@${match[1]}> has been removed from blacklist.`)] });
+          });
+        }
+
+        // === BYPASS TOGGLE ===
+        if (id === 'owner_bypass') {
+          const { bypassFlags } = require('../commands/admin/owner');
+          const features = ['cooldown', 'automod', 'leveling', 'antispam', 'antilink'];
+          if (!bypassFlags.has(guildId)) bypassFlags.set(guildId, new Set());
+          const guildBypass = bypassFlags.get(guildId);
+          const status = features.map(f => `${guildBypass.has(f) ? '✅' : '❌'} ${f}`).join('\n');
+          
+          const bypassRow = new ActionRowBuilder().addComponents(
+            ...features.map(f => new ButtonBuilder()
+              .setCustomId(`bypass_${f}`)
+              .setLabel(f.charAt(0).toUpperCase() + f.slice(1))
+              .setStyle(guildBypass.has(f) ? ButtonStyle.Success : ButtonStyle.Danger)
+              .setEmoji(guildBypass.has(f) ? '✅' : '❌'))
+          );
+          
+          interaction.reply({
+            embeds: [new EmbedBuilder().setColor(0xff0055).setTitle('⚡ Bypass Toggles').setDescription(`Toggle bypass features for this server:\n\n${status}`).setTimestamp()],
+            components: [bypassRow],
+            ephemeral: true,
+          });
+        }
+
+        // === AI LOGS ===
+        if (id === 'owner_ailogs') {
+          const AILog = require('../schemas/AILog');
+          const logs = await AILog.find({ guildId }).catch(() => []);
+          if (!logs || logs.length === 0) {
+            return interaction.reply({ embeds: [infoEmbed('AI Logs', 'No AI logs found for this server.')], ephemeral: true });
+          }
+          const recent = logs.slice(-10).reverse();
+          const logText = recent.map((l, i) => {
+            const user = l.userId ? `<@${l.userId}>` : 'Unknown';
+            return `**${i + 1}.** ${user}: \`${(l.userMessage || '').slice(0, 50)}\`\n→ \`${(l.aiResponse || '').slice(0, 80)}\``;
+          }).join('\n\n');
+          interaction.reply({ embeds: [new EmbedBuilder().setColor(0x4285f4).setTitle('📝 Recent AI Logs').setDescription(logText.slice(0, 3900)).setFooter({ text: `Total: ${logs.length} logs` }).setTimestamp()], ephemeral: true });
+        }
+
+        // === EXECUTE CODE ===
+        if (id === 'owner_exec') {
+          interaction.reply({ embeds: [infoEmbed('Execute Code', 'Type JavaScript code to execute (dangerous!).\nType `cancel` to cancel.')], ephemeral: true });
+          const filter = m => m.author.id === interaction.user.id;
+          const collector = interaction.channel.createMessageCollector({ filter, max: 1, time: 60000 });
+          collector.on('collect', async m => {
+            if (m.content.toLowerCase() === 'cancel') { m.reply('Cancelled.'); return; }
+            try {
+              const code = m.content.replace(/```js\n?/g, '').replace(/```/g, '').trim();
+              const result = await eval(`(async () => { ${code} })()`);
+              const output = typeof result === 'string' ? result : JSON.stringify(result, null, 2) || 'undefined';
+              m.reply({ embeds: [new EmbedBuilder().setColor(0x00d26a).setTitle('💻 Execution Result').setDescription(`\`\`\`js\n${output.slice(0, 3500)}\n\`\`\``).setTimestamp()] });
+            } catch (err) {
+              m.reply({ embeds: [new EmbedBuilder().setColor(0xff4757).setTitle('💻 Execution Error').setDescription(`\`\`\`\n${err.message?.slice(0, 3500)}\n\`\`\``).setTimestamp()] });
+            }
+          });
+        }
+
+        // === TOGGLE AI ===
+        if (id === 'owner_toggleai') {
+          const settings = await GuildSettings.findOne({ guildId }).catch(() => null);
+          if (!settings) {
+            await GuildSettings.create({ guildId });
+            return interaction.reply({ embeds: [infoEmbed('AI', 'Settings created. Use /aichannel to configure.')], ephemeral: true });
+          }
+          settings.ai = settings.ai || {};
+          settings.ai.enabled = !settings.ai.enabled;
+          // Auto-add current channel when enabling
+          if (settings.ai.enabled) {
+            settings.ai.channels = settings.ai.channels || [];
+            if (!settings.ai.channels.includes(interaction.channel.id)) {
+              settings.ai.channels.push(interaction.channel.id);
+            }
+          }
+          await settings.save();
+          const channelMsg = settings.ai.enabled ? `\nChannel <#${interaction.channel.id}> added as AI chat channel.` : '';
+          interaction.reply({ embeds: [successEmbed('AI Toggled', `AI is now **${settings.ai.enabled ? 'ENABLED ✅' : 'DISABLED ❌'}** for this server.${channelMsg}`)], ephemeral: true });
+        }
+
+        // === TOGGLE LEVELING ===
+        if (id === 'owner_togglelevel') {
+          const settings = await GuildSettings.findOne({ guildId }).catch(() => null);
+          if (!settings) {
+            await GuildSettings.create({ guildId });
+            return interaction.reply({ embeds: [infoEmbed('Leveling', 'Settings created.')], ephemeral: true });
+          }
+          settings.leveling = settings.leveling || {};
+          settings.leveling.enabled = !settings.leveling.enabled;
+          await settings.save();
+          interaction.reply({ embeds: [successEmbed('Leveling Toggled', `Leveling is now **${settings.leveling.enabled ? 'ENABLED ✅' : 'DISABLED ❌'}**.`)], ephemeral: true });
+        }
+
+        // === RELOAD COMMANDS ===
+        if (id === 'owner_reloadcmds') {
+          const { loadCommands } = require('../handlers/commandHandler');
+          loadCommands(client);
+          interaction.reply({ embeds: [successEmbed('Commands Reloaded', `Reloaded **${client.commands.size}** commands.`)], ephemeral: true });
+        }
+
+        // === DM USER ===
+        if (id === 'owner_dm') {
+          interaction.reply({ embeds: [infoEmbed('DM User', 'Mention a user or paste their ID, then type your message.\nFormat: `@user your message`\nType `cancel` to cancel.')], ephemeral: true });
+          const filter = m => m.author.id === interaction.user.id;
+          const collector = interaction.channel.createMessageCollector({ filter, max: 1, time: 60000 });
+          collector.on('collect', async m => {
+            if (m.content.toLowerCase() === 'cancel') { m.reply('Cancelled.'); return; }
+            const match = m.content.match(/<@!?(\d+)>\s*(.+)/s);
+            if (!match) { m.reply('Format: `@user your message`'); return; }
+            try {
+              const user = await client.users.fetch(match[1]);
+              await user.send({ content: match[2].trim() });
+              m.reply({ embeds: [successEmbed('DM Sent', `Message sent to **${user.tag}**.`)] });
+            } catch (err) {
+              m.reply({ embeds: [errorEmbed('DM Failed', 'Could not DM the user. They may have DMs disabled.')] });
+            }
+          });
+        }
+      }
+
+      // === BYPASS TOGGLE BUTTONS ===
+      if (id.startsWith('bypass_')) {
+        const { isOwner, bypassFlags } = require('../commands/admin/owner');
+        if (!isOwner(interaction.user.id)) return interaction.reply({ embeds: [errorEmbed('Access Denied', 'Owner only.')], ephemeral: true });
+        const feature = id.replace('bypass_', '');
+        if (!bypassFlags.has(guildId)) bypassFlags.set(guildId, new Set());
+        const guildBypass = bypassFlags.get(guildId);
+        if (guildBypass.has(feature)) {
+          guildBypass.delete(feature);
+        } else {
+          guildBypass.add(feature);
+        }
+        const status = guildBypass.has(feature) ? 'ENABLED ✅' : 'DISABLED ❌';
+        interaction.reply({ embeds: [successEmbed(`Bypass: ${feature}`, `**${feature}** bypass is now **${status}** for this server.`)], ephemeral: true });
+      }
+
+      // === FEATURES PANEL BUTTONS ===
+      if (id.startsWith('feat_')) {
+        const { isOwner: isOwn, isAdmin: isAdm } = require('../commands/admin/owner');
+        if (!isOwn(interaction.user.id) && !isAdm(interaction.guild.id, interaction.user.id)) {
+          return interaction.reply({ embeds: [errorEmbed('Access Denied', 'Admin access required.')], ephemeral: true });
+        }
+
+        if (id === 'feat_enable_all') {
+          await GuildSettings.updateOne({ guildId }, { $set: { disabledCommands: [], disabledCategories: [] } });
+          interaction.reply({ embeds: [successEmbed('All Enabled', 'All commands and categories have been **enabled** ✅')], ephemeral: true });
+        }
+        if (id === 'feat_disable_fun') {
+          const settings = await GuildSettings.findOne({ guildId });
+          const dc = settings?.disabledCategories || [];
+          if (!dc.includes('fun')) await GuildSettings.updateOne({ guildId }, { $push: { disabledCategories: 'fun' } });
+          interaction.reply({ embeds: [successEmbed('Fun Disabled', 'The **fun** category has been **disabled** 🔴')], ephemeral: true });
+        }
+        if (id === 'feat_disable_game') {
+          const settings = await GuildSettings.findOne({ guildId });
+          const dc = settings?.disabledCategories || [];
+          if (!dc.includes('game')) await GuildSettings.updateOne({ guildId }, { $push: { disabledCategories: 'game' } });
+          interaction.reply({ embeds: [successEmbed('Games Disabled', 'The **game** category has been **disabled** 🔴')], ephemeral: true });
+        }
+        if (id === 'feat_disable_music') {
+          const settings = await GuildSettings.findOne({ guildId });
+          const dc = settings?.disabledCategories || [];
+          if (!dc.includes('music')) await GuildSettings.updateOne({ guildId }, { $push: { disabledCategories: 'music' } });
+          interaction.reply({ embeds: [successEmbed('Music Disabled', 'The **music** category has been **disabled** 🔴')], ephemeral: true });
+        }
+        if (id === 'feat_refresh') {
+          const settings = await GuildSettings.findOne({ guildId }) || await GuildSettings.create({ guildId });
+          const disabledCommands = settings.disabledCommands || [];
+          const disabledCategories = settings.disabledCategories || [];
+          const categories = {};
+          for (const [, cmd] of interaction.client.commands) {
+            const cat = cmd.data?.category || 'other';
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(cmd.data.name);
+          }
+          const lines = Object.entries(categories).map(([cat, cmds]) => {
+            const disabled = disabledCategories.includes(cat);
+            return `${disabled ? '🔴' : '🟢'} **${cat.toUpperCase()}** (${cmds.length})`;
+          });
+          const { panelEmbed, COLORS } = require('../utils/embeds');
+          const embed = panelEmbed({
+            title: '📋 Feature Status (Refreshed)',
+            description: lines.join('\n'),
+            color: COLORS.admin,
+            fields: [
+              { name: '🔴 Disabled Categories', value: disabledCategories.length ? disabledCategories.map(c => `\`${c}\``).join(', ') : 'None', inline: true },
+              { name: '🔒 Disabled Commands', value: disabledCommands.length ? disabledCommands.map(c => `\`/${c}\``).join(', ') : 'None', inline: true },
+            ],
+          });
+          interaction.update({ embeds: [embed], ephemeral: true });
+        }
       }
 
       // === ADMIN PANEL BUTTONS ===
@@ -486,6 +733,7 @@ module.exports = {
           admin_toggleeconomy: ['economy.enabled', 'Economy'],
           admin_toggletickets: ['tickets.enabled', 'Tickets'],
           admin_toggleai: ['ai.enabled', 'AI Chat'],
+          admin_toggleaiwarn: ['aiWarning.enabled', 'AI Warning'],
           admin_togglesecurity: ['security.enabled', 'Security'],
         };
 
@@ -496,22 +744,74 @@ module.exports = {
           const parts = path.split('.');
           const current = settings?.[parts[0]]?.[parts[1]];
           await GuildSettings.updateOne({ guildId }, { [path]: !current });
+
+          // When enabling AI, auto-add current channel as AI channel
+          if (id === 'admin_toggleai' && !current) {
+            const aiChannels = settings?.ai?.channels || [];
+            if (!aiChannels.includes(interaction.channel.id)) {
+              await GuildSettings.updateOne({ guildId }, { $push: { 'ai.channels': interaction.channel.id } });
+            }
+            return interaction.reply({ embeds: [successEmbed(name, `${name} has been **enabled** ✅\nThis channel (<#${interaction.channel.id}>) is now an AI chat channel. The bot will respond to all messages here.`)], ephemeral: true });
+          }
+
           interaction.reply({ embeds: [successEmbed(name, `${name} has been **${!current ? 'enabled' : 'disabled'}**.`)], ephemeral: true });
         }
 
         if (id === 'admin_refresh') {
           const settings = await GuildSettings.findOne({ guildId }).catch(() => null);
-          const mod = settings ? [
-            `Moderation: ${settings.moderation?.enabled ? '✅' : '❌'}`,
-            `AutoMod: ${settings.automod?.enabled ? '✅' : '❌'}`,
-            `Welcome: ${settings.welcome?.enabled ? '✅' : '❌'}`,
-            `Leveling: ${settings.leveling?.enabled ? '✅' : '❌'}`,
-            `Economy: ${settings.economy?.enabled ? '✅' : '❌'}`,
-            `Tickets: ${settings.tickets?.enabled ? '✅' : '❌'}`,
-            `AI Chat: ${settings.ai?.enabled ? '✅' : '❌'}`,
-            `Security: ${settings.security?.enabled ? '✅' : '❌'}`,
-          ].join('\n') : 'Settings not initialized';
-          interaction.update({ embeds: [new EmbedBuilder().setColor(0x3b82f6).setTitle('🛡️ Admin Panel (Refreshed)').setDescription(`**Server:** ${interaction.guild.name}\nMembers: **${interaction.guild.memberCount}** | Channels: **${interaction.guild.channels.cache.size}** | Emojis: **${interaction.guild.emojis.cache.size}**`).addFields({ name: '🔧 Modules', value: mod })] }).catch(() => {});
+          const modules = settings ? [
+            { name: 'Moderation', emoji: '⚖️', enabled: settings.moderation?.enabled },
+            { name: 'AutoMod', emoji: '🤖', enabled: settings.automod?.enabled },
+            { name: 'Welcome', emoji: '👋', enabled: settings.welcome?.enabled },
+            { name: 'Leveling', emoji: '📈', enabled: settings.leveling?.enabled },
+            { name: 'Economy', emoji: '💰', enabled: settings.economy?.enabled },
+            { name: 'Tickets', emoji: '🎫', enabled: settings.tickets?.enabled },
+            { name: 'AI Chat', emoji: '🧠', enabled: settings.ai?.enabled },
+            { name: 'AI Warn', emoji: '🚨', enabled: settings.aiWarning?.enabled },
+            { name: 'Security', emoji: '🔒', enabled: settings.security?.enabled },
+            { name: 'Logging', emoji: '📝', enabled: settings.logging?.enabled },
+          ] : [];
+          const dc = settings?.disabledCategories || [];
+          const dcmd = settings?.disabledCommands || [];
+          const embed = new EmbedBuilder()
+            .setColor(0x3498db)
+            .setTitle('🛡️ Server Control Panel (Refreshed)')
+            .setDescription(
+              `> **Server:** ${interaction.guild.name}\n` +
+              `> **Access:** ${isOwner(interaction.user.id) ? '👑 Owner' : '🛡️ Admin'}\n` +
+              `> **Disabled:** ${dc.length} categories, ${dcmd.length} commands`
+            )
+            .addFields(
+              { name: '📊 Server Overview', value: `👥 **${interaction.guild.memberCount}** members\n💬 **${interaction.guild.channels.cache.size}** channels\n🎭 **${interaction.guild.roles.cache.size}** roles\n😀 **${interaction.guild.emojis.cache.size}** emojis`, inline: true },
+              { name: '🔧 Module Status', value: settings ? modules.map(m => `${m.enabled ? '🟢' : '🔴'} ${m.emoji} **${m.name}**`).join('\n') : 'Not initialized', inline: true },
+              { name: '⚡ Quick Actions', value: '• **/features status** — see all commands\n• **/features toggle** — enable/disable categories\n• Buttons below toggle core modules', inline: false },
+            )
+            .setFooter({ text: `Admin Panel • ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+            .setTimestamp()
+            .setThumbnail(interaction.guild.iconURL({ dynamic: true, size: 256 }));
+
+          const r1 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('admin_togglemod').setLabel('Moderation').setStyle(settings?.moderation?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('⚖️'),
+            new ButtonBuilder().setCustomId('admin_toggleautomod').setLabel('AutoMod').setStyle(settings?.automod?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🤖'),
+            new ButtonBuilder().setCustomId('admin_togglewelcome').setLabel('Welcome').setStyle(settings?.welcome?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('👋'),
+            new ButtonBuilder().setCustomId('admin_toggleleveling').setLabel('Leveling').setStyle(settings?.leveling?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('📈'),
+            new ButtonBuilder().setCustomId('admin_refresh').setLabel('Refresh').setStyle(ButtonStyle.Secondary).setEmoji('🔄'),
+          );
+          const r2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('admin_toggleeconomy').setLabel('Economy').setStyle(settings?.economy?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('💰'),
+            new ButtonBuilder().setCustomId('admin_toggletickets').setLabel('Tickets').setStyle(settings?.tickets?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🎫'),
+            new ButtonBuilder().setCustomId('admin_toggleai').setLabel('AI Chat').setStyle(settings?.ai?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🧠'),
+            new ButtonBuilder().setCustomId('admin_toggleaiwarn').setLabel('AI Warn').setStyle(settings?.aiWarning?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🚨'),
+            new ButtonBuilder().setCustomId('admin_features').setLabel('Features').setStyle(ButtonStyle.Primary).setEmoji('📋'),
+          );
+          const r3 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('admin_togglesecurity').setLabel('Security').setStyle(settings?.security?.enabled ? ButtonStyle.Success : ButtonStyle.Danger).setEmoji('🔒'),
+            new ButtonBuilder().setCustomId('admin_purgeall').setLabel('Purge Channel').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
+            new ButtonBuilder().setCustomId('admin_serverstats').setLabel('Server Stats').setStyle(ButtonStyle.Primary).setEmoji('📊'),
+            new ButtonBuilder().setCustomId('admin_rolelist').setLabel('Role List').setStyle(ButtonStyle.Secondary).setEmoji('📋'),
+            new ButtonBuilder().setCustomId('admin_refresh').setLabel('Refresh').setStyle(ButtonStyle.Secondary).setEmoji('🔄'),
+          );
+          interaction.update({ embeds: [embed], components: [r1, r2, r3] }).catch(() => {});
         }
 
         if (id === 'admin_emojis') {
@@ -562,6 +862,84 @@ module.exports = {
             embeds: [new EmbedBuilder().setColor(0x3b82f6).setTitle('📋 Role List').setDescription(`${top}\n\n**Total:** ${roles.size} roles`).setTimestamp()], ephemeral: true
           });
         }
+
+        if (id === 'admin_features') {
+          const settings = await GuildSettings.findOne({ guildId }) || await GuildSettings.create({ guildId });
+          const disabledCommands = settings.disabledCommands || [];
+          const disabledCategories = settings.disabledCategories || [];
+          const categories = {};
+          for (const [, cmd] of client.commands) {
+            const cat = cmd.data?.category || 'other';
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(cmd.data.name);
+          }
+          const catEmojis = { fun: '🎮', ai: '🤖', game: '🎯', music: '🎵', utility: '🔧', economy: '💰', moderation: '🛡️', admin: '⚙️', leveling: '📊', other: '📦' };
+          const lines = Object.entries(categories).map(([cat, cmds]) => {
+            const disabled = disabledCategories.includes(cat);
+            return `${disabled ? '🔴' : '🟢'} ${catEmojis[cat] || '📦'} **${cat.toUpperCase()}** (${cmds.length} cmds)${disabled ? ' — DISABLED' : ''}`;
+          });
+          const embed = new EmbedBuilder().setColor(0x3498db).setTitle('📋 Feature Status')
+            .setDescription(lines.join('\n'))
+            .addFields(
+              { name: '🔴 Disabled Categories', value: disabledCategories.length ? disabledCategories.map(c => `\`${c}\``).join(', ') : 'None', inline: true },
+              { name: '🔒 Disabled Commands', value: disabledCommands.length ? disabledCommands.map(c => `\`/${c}\``).join(', ') : 'None', inline: true },
+            ).setTimestamp();
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('feat_enable_all').setLabel('Enable All').setStyle(ButtonStyle.Success).setEmoji('✅'),
+            new ButtonBuilder().setCustomId('feat_disable_fun').setLabel('Disable Fun').setStyle(ButtonStyle.Secondary).setEmoji('🎮'),
+            new ButtonBuilder().setCustomId('feat_disable_game').setLabel('Disable Games').setStyle(ButtonStyle.Secondary).setEmoji('🎯'),
+            new ButtonBuilder().setCustomId('feat_disable_music').setLabel('Disable Music').setStyle(ButtonStyle.Secondary).setEmoji('🎵'),
+          );
+          interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+        }
+
+        if (id === 'admin_channels') {
+          const g = interaction.guild;
+          const text = g.channels.cache.filter(c => c.type === 0).size;
+          const voice = g.channels.cache.filter(c => c.type === 2).size;
+          const cats = g.channels.cache.filter(c => c.type === 4).size;
+          const announcements = g.channels.cache.filter(c => c.type === 5).size;
+          const forums = g.channels.cache.filter(c => c.type === 15).size;
+          const stages = g.channels.cache.filter(c => c.type === 13).size;
+          const embed = new EmbedBuilder().setColor(0x3b82f6).setTitle('💬 Channel Overview')
+            .addFields(
+              { name: '📝 Text', value: `${text}`, inline: true },
+              { name: '🔊 Voice', value: `${voice}`, inline: true },
+              { name: '📁 Categories', value: `${cats}`, inline: true },
+              { name: '📢 Announcements', value: `${announcements}`, inline: true },
+              { name: '📋 Forums', value: `${forums}`, inline: true },
+              { name: '🎤 Stages', value: `${stages}`, inline: true },
+              { name: '📊 Total', value: `${g.channels.cache.size} channels`, inline: false },
+            ).setTimestamp();
+          interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+      }
+
+      // === HELP BUTTONS ===
+      if (id.startsWith('help_')) {
+        const category = id.replace('help_', '');
+        const catEmojis = { fun: '🎮', ai: '🤖', game: '🎯', music: '🎵', utility: '🔧', economy: '💰', moderation: '🛡️', admin: '⚙️', leveling: '📊', security: '🔒', other: '📦', tickets: '🎫' };
+        const catColors = { fun: 0xff6b81, ai: 0x4285f4, game: 0x9b59b6, music: 0x1db954, utility: 0x3b82f6, economy: 0xf1c40f, moderation: 0xe74c3c, admin: 0x3498db, leveling: 0xffd700, security: 0xff4757, other: 0x2f3136, tickets: 0x00bcd4 };
+        const categories = {};
+        for (const [, cmd] of client.commands) {
+          const cat = cmd.data?.category || 'other';
+          if (!categories[cat]) categories[cat] = [];
+          categories[cat].push({ name: cmd.data.name, desc: cmd.data.description || 'No description' });
+        }
+        const cmds = categories[category] || [];
+        if (cmds.length === 0) {
+          return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xff4757).setTitle('❌ No Commands').setDescription(`No commands found in **${category}**.`).setTimestamp()], ephemeral: true });
+        }
+        const emoji = catEmojis[category] || '📦';
+        const lines = cmds.map(c => `> \`/${c.name}\` — ${c.desc}`).join('\n');
+        const embed = new EmbedBuilder()
+          .setColor(catColors[category] || 0x2f3136)
+          .setTitle(`${emoji} ${category.charAt(0).toUpperCase() + category.slice(1)} Commands`)
+          .setDescription(lines)
+          .addFields({ name: '📊 Total', value: `${cmds.length} commands`, inline: true })
+          .setFooter({ text: `Use /help to see all categories • ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() })
+          .setTimestamp();
+        interaction.reply({ embeds: [embed], ephemeral: true });
       }
 
       // === TRIVIA BUTTONS ===

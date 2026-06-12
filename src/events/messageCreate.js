@@ -17,6 +17,10 @@ module.exports = {
     const guildId = message.guild.id;
     const userId = message.author.id;
 
+    // === BLACKLIST CHECK ===
+    const { isBlacklisted } = require('../commands/admin/owner');
+    if (isBlacklisted(userId)) return; // Silently ignore blacklisted users
+
     // === AI TICKET TRIAGE ===
     // Check if this channel is pending triage (newly detected ticket channel)
     const channelCreateEvent = require('./channelCreate');
@@ -69,17 +73,84 @@ module.exports = {
       }
     }
 
-    // === AI CHAT ===
+    // === AI CHAT (Channel Lock System) ===
     if (settings?.ai?.enabled) {
       const isAIChannel = settings.ai.channels?.includes(message.channel.id);
       const isMention = message.mentions.has(client.user);
-      if (isAIChannel || (settings.ai.mentionMode && isMention) || settings.ai.autoReply) {
+      const content = message.content.trim();
+
+      // ── CHANNEL LOCK RULES ──
+      // In designated AI channels: respond to ALL messages (casual chat allowed)
+      // Outside AI channels: ONLY respond when @mentioned (strict lock)
+      // Always skip commands and very short messages
+      const shouldRespond = isAIChannel || isMention;
+
+      if (shouldRespond && content.length >= 2 && !content.startsWith('/') && !content.startsWith('!')) {
         const aiCooldownKey = `ai-${guildId}-${userId}`;
-        const aiCd = checkFeatureCooldown(aiCooldownKey, (settings.ai.cooldown || 5) * 1000);
+        const aiCd = checkFeatureCooldown(aiCooldownKey, (settings.ai.cooldown || 3) * 1000);
         if (aiCd <= 0) {
-          const typing = message.channel.sendTyping?.();
+          try {
+            await message.channel.sendTyping();
+          } catch (e) { /* ignore typing errors */ }
           const reply = await aiService.getResponse(message, settings);
-          message.reply({ content: cleanContent(reply) }).catch(() => {});
+          if (reply) {
+            message.reply({ content: cleanContent(reply).slice(0, 1900) }).catch(err => {
+              console.error('[AI CHAT] Reply error:', err.message?.slice(0, 100));
+            });
+          }
+        }
+      }
+    }
+
+    // === AI RULE WARNING SYSTEM ===
+    if (settings?.aiWarning?.enabled) {
+      const ignoredRole = settings.aiWarning.ignoredRoles?.some(r => message.member.roles.cache.has(r));
+      const ignoredCh = settings.aiWarning.ignoredChannels?.includes(message.channel.id);
+      const isAdmin = message.member.permissions.has('Administrator');
+
+      if (!ignoredRole && !ignoredCh && !isAdmin) {
+        const violation = await aiService.checkRuleViolation(message);
+        if (violation) {
+          // Check minimum severity threshold
+          const severityLevels = { low: 1, medium: 2, high: 3 };
+          const minLevel = severityLevels[settings.aiWarning.minSeverity] || 2;
+          const violLevel = severityLevels[violation.severity] || 1;
+
+          if (violLevel >= minLevel) {
+            const severityEmoji = { low: '⚠️', medium: '🟠', high: '🚨' };
+            const emoji = severityEmoji[violation.severity] || '⚠️';
+
+            // Warn the user in chat
+            const warnMsg = await message.channel.send({
+              content: `${emoji} **${message.author.username}**, your message may violate server rules.\n> **Rule:** ${violation.rule}\n> **Reason:** ${violation.reason}\n> **Severity:** ${violation.severity}\nPlease follow the server rules to avoid further action.`,
+            }).catch(() => null);
+
+            // Auto-delete warning after 15 seconds
+            if (warnMsg) setTimeout(() => warnMsg.delete().catch(() => {}), 15000);
+
+            // Log to log channel if configured
+            if (settings.aiWarning.logChannel) {
+              const logCh = message.guild.channels.cache.get(settings.aiWarning.logChannel);
+              if (logCh) {
+                const { EmbedBuilder } = require('discord.js');
+                logCh.send({
+                  embeds: [new EmbedBuilder()
+                    .setColor(violation.severity === 'high' ? 0xff4757 : violation.severity === 'medium' ? 0xffa502 : 0x3b82f6)
+                    .setTitle(`${emoji} AI Rule Warning`)
+                    .addFields(
+                      { name: '👤 User', value: `${message.author.tag} (${message.author.id})`, inline: true },
+                      { name: '💬 Channel', value: `<#${message.channel.id}>`, inline: true },
+                      { name: '📏 Rule', value: violation.rule, inline: true },
+                      { name: '📊 Severity', value: violation.severity, inline: true },
+                      { name: '📝 Reason', value: violation.reason, inline: false },
+                      { name: '💭 Message', value: message.content.slice(0, 500), inline: false },
+                    )
+                    .setTimestamp()
+                  ],
+                }).catch(() => {});
+              }
+            }
+          }
         }
       }
     }

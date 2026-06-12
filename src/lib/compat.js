@@ -1,64 +1,116 @@
 /**
- * Supabase compatibility layer for Mongoose-like API.
- * Provides findOne, find, create, updateOne, findOneAndUpdate,
- * findOneAndDelete, findByIdAndDelete, and doc.save() patterns.
+ * SQLite compatibility layer — Mongoose-like API on top of better-sqlite3.
+ * Every table stores flexible fields as a JSON string in the "data" column,
+ * with dedicated columns (guildId, userId, …) for indexed lookups.
  */
-const { supabase } = require('./supabase');
+const { db } = require('./database');
 
-/** Apply MongoDB-style query operators ($in, $lte, $gte, $lt, $gt) to a Supabase query */
-function applyFilters(query, filter) {
-  for (const [key, value] of Object.entries(filter)) {
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      if ('$in' in value) query = query.in(key, value.$in);
-      else if ('$lte' in value) query = query.lte(key, value.$lte);
-      else if ('$gte' in value) query = query.gte(key, value.$gte);
-      else if ('$lt' in value) query = query.lt(key, value.$lt);
-      else if ('$gt' in value) query = query.gt(key, value.$gt);
-      else if ('$ne' in value) query = query.neq(key, value.$ne);
-    } else {
-      query = query.eq(key, value);
-    }
+/* ── helpers ────────────────────────────────────────────────────────── */
+
+/** Columns that are real table columns (not stored inside the JSON blob). */
+const DEDICATED_COLS = new Set(['id', 'guildId', 'userId', 'channelId',
+  'messageId', 'hostId', 'prize', 'ticketId', 'trigger', 'type',
+  'moderatorId', 'guild_id']);
+
+/** Parse the JSON data column, merge with dedicated columns, attach save(). */
+function hydrate(row, table) {
+  if (!row) return null;
+  let extra = {};
+  try { extra = JSON.parse(row.data || '{}'); } catch { /* ignore */ }
+  const obj = { ...extra };
+  // Copy dedicated columns onto the object
+  for (const col of DEDICATED_COLS) {
+    if (row[col] !== undefined) obj[col] = row[col];
   }
-  return query;
+  return attachSave(obj, table);
 }
 
-/** Attach a .save() method to a row object that does an UPDATE by pk */
-function attachSave(row, table, pkColumn) {
-  row.save = async function () {
-    const { data, error } = await supabase
-      .from(table)
-      .update(this)
-      .eq(pkColumn, this[pkColumn])
-      .select()
-      .single();
-    if (error) throw error;
-    Object.assign(this, data);
-    attachSave(this, table, pkColumn);
+/** Attach a .save() method that persists back to SQLite. */
+function attachSave(obj, table) {
+  obj.save = async function () {
+    const { save: _, ...fields } = this;
+    const dedicated = {};
+    const jsonData = {};
+    for (const [k, v] of Object.entries(fields)) {
+      if (DEDICATED_COLS.has(k)) dedicated[k] = v;
+      else jsonData[k] = v;
+    }
+    dedicated.data = JSON.stringify(jsonData);
+    const sets = Object.keys(dedicated).filter(k => k !== 'id')
+      .map(k => `${k} = ?`).join(', ');
+    const vals = Object.keys(dedicated).filter(k => k !== 'id')
+      .map(k => dedicated[k]);
+    db.prepare(`UPDATE ${table} SET ${sets} WHERE id = ?`).run(...vals, this.id);
     return this;
   };
-  return row;
+  return obj;
 }
 
 /**
- * Create a Mongoose-compatible wrapper for a flat Supabase table.
- * @param {string} table - Supabase table name
- * @param {string} pkColumn - Primary key column (default 'id')
- * @param {object} defaults - Default field values for create()
+ * Translate a MongoDB-style filter into SQL WHERE + params.
+ * Supports: exact match, $in, $lte, $gte, $lt, $gt, $ne
  */
-function createTableWrapper(table, pkColumn = 'id', defaults = {}) {
+function buildWhere(filter) {
+  const clauses = [];
+  const params = [];
+
+  for (const [key, value] of Object.entries(filter)) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      // Operators
+      for (const [op, val] of Object.entries(value)) {
+        if (op === '$in') {
+          const placeholders = val.map(() => '?').join(',');
+          // $in could be on a dedicated column or inside data JSON
+          if (DEDICATED_COLS.has(key)) {
+            clauses.push(`"${key}" IN (${placeholders})`);
+            params.push(...val);
+          } else {
+            clauses.push(`json_extract(data, '$.${key}') IN (${placeholders})`);
+            params.push(...val);
+          }
+        } else if (op === '$lte' || op === '$gte' || op === '$lt' || op === '$gt' || op === '$ne') {
+          const sqlOp = { $lte: '<=', $gte: '>=', $lt: '<', $gt: '>', $ne: '!=' }[op];
+          if (DEDICATED_COLS.has(key)) {
+            clauses.push(`"${key}" ${sqlOp} ?`);
+          } else {
+            clauses.push(`json_extract(data, '$.${key}') ${sqlOp} ?`);
+          }
+          params.push(val);
+        }
+      }
+    } else {
+      // Exact match
+      if (DEDICATED_COLS.has(key)) {
+        clauses.push(`"${key}" = ?`);
+      } else {
+        clauses.push(`json_extract(data, '$.${key}') = ?`);
+      }
+      params.push(value);
+    }
+  }
+
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+/* ── public API ─────────────────────────────────────────────────────── */
+
+/**
+ * Create a Mongoose-compatible wrapper for a table.
+ * @param {string} table  – SQLite table name
+ * @param {string} _pk    – ignored (always 'id')
+ * @param {object} defaults – default field values for create()
+ */
+function createTableWrapper(table, _pk = 'id', defaults = {}) {
   return {
-    /** Find one row matching filter. Returns object with .save() or null */
+    /** Find one row. Returns hydrated object with .save() or null. */
     async findOne(filter) {
-      let q = supabase.from(table).select();
-      q = applyFilters(q, filter);
-      const { data, error } = await q.single();
-      if (error || !data) return null;
-      return attachSave(data, table, pkColumn);
+      const { where, params } = buildWhere(filter);
+      const row = db.prepare(`SELECT * FROM ${table} ${where} LIMIT 1`).get(...params);
+      return hydrate(row, table);
     },
 
-    /** Find all rows matching filter. Supports .sort() and .limit() chaining */
+    /** Find rows. Returns a thenable chain with .sort() and .limit(). */
     find(filter = {}) {
-      const self = this;
       let sortField = null, sortAsc = true, limitN = null;
 
       const chain = {
@@ -75,142 +127,162 @@ function createTableWrapper(table, pkColumn = 'id', defaults = {}) {
         limit(n) { limitN = n; return chain; },
         then(resolve, reject) {
           (async () => {
-            let q = supabase.from(table).select();
-            q = applyFilters(q, filter);
-            if (sortField) q = q.order(sortField, { ascending: sortAsc });
-            if (limitN) q = q.limit(limitN);
-            const { data, error } = await q;
-            if (error) throw error;
-            return (data || []).map(row => attachSave(row, table, pkColumn));
+            const { where, params } = buildWhere(filter);
+            let sql = `SELECT * FROM ${table} ${where}`;
+            if (sortField) {
+              const col = DEDICATED_COLS.has(sortField) ? `"${sortField}"` : `json_extract(data, '$.${sortField}')`;
+              sql += ` ORDER BY ${col} ${sortAsc ? 'ASC' : 'DESC'}`;
+            }
+            if (limitN) sql += ` LIMIT ${limitN}`;
+            const rows = db.prepare(sql).all(...params);
+            return rows.map(r => hydrate(r, table));
           })().then(resolve, reject);
         },
       };
       return chain;
     },
 
-    /** Create a new row with defaults merged with provided data */
+    /** Insert a new row. */
     async create(inputData) {
-      const row = { ...defaults, ...inputData };
-      const { data, error } = await supabase
-        .from(table)
-        .insert(row)
-        .select()
-        .single();
-      if (error) throw error;
-      return attachSave(data, table, pkColumn);
+      const dedicated = {};
+      const jsonData = {};
+      const merged = { ...defaults, ...inputData };
+
+      for (const [k, v] of Object.entries(merged)) {
+        if (DEDICATED_COLS.has(k)) dedicated[k] = v;
+        else jsonData[k] = v;
+      }
+      dedicated.data = JSON.stringify(jsonData);
+
+      const cols = Object.keys(dedicated);
+      const placeholders = cols.map(() => '?').join(',');
+      const stmt = db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`);
+      const result = stmt.run(...cols.map(c => dedicated[c]));
+
+      // Return the newly inserted row (hydrated)
+      const row = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(result.lastInsertRowid);
+      return hydrate(row, table);
     },
 
-    /** Update rows matching filter. Supports $inc, $push, $pull, $set, dot-notation */
+    /** Update rows matching filter. */
     async updateOne(filter, updates) {
-      return await _updateRows(table, pkColumn, filter, updates, false);
+      return _updateRows(table, filter, updates);
     },
 
-    /** Find one and update, with upsert support */
+    /** Find one and update (with optional upsert). */
     async findOneAndUpdate(filter, updates, opts = {}) {
       if (opts.upsert) {
         const existing = await this.findOne(filter);
         if (!existing) {
-          const created = await this.create({ ...filter, ..._flattenUpdates(updates) });
-          return created;
+          const flat = { ...filter };
+          if (updates.$set) Object.assign(flat, updates.$set);
+          if (updates.$inc) {
+            for (const [k, v] of Object.entries(updates.$inc)) flat[k] = (flat[k] || 0) + v;
+          }
+          return await this.create(flat);
         }
       }
-      await _updateRows(table, pkColumn, filter, updates, false);
+      await _updateRows(table, filter, updates);
       return await this.findOne(filter);
     },
 
-    /** Find one and delete */
+    /** Delete one row matching filter. */
     async findOneAndDelete(filter) {
-      let q = supabase.from(table).delete();
-      q = applyFilters(q, filter);
-      const { error } = await q;
-      if (error) throw error;
+      const { where, params } = buildWhere(filter);
+      db.prepare(`DELETE FROM ${table} ${where} LIMIT 1`.replace(' LIMIT 1', '')).run(...params);
       return true;
     },
 
-    /** Delete by primary key */
+    /** Delete by primary key. */
     async findByIdAndDelete(id) {
-      const { error } = await supabase.from(table).delete().eq(pkColumn, id);
-      if (error) throw error;
+      db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
       return true;
     },
 
-    /** Delete rows matching filter */
+    /** Delete all rows matching filter. */
     async deleteOne(filter) {
-      let q = supabase.from(table).delete();
-      q = applyFilters(q, filter);
-      const { error } = await q;
-      if (error) throw error;
+      const { where, params } = buildWhere(filter);
+      db.prepare(`DELETE FROM ${table} ${where}`).run(...params);
       return true;
     },
   };
 }
 
-/** Flatten MongoDB update operators into plain object */
-function _flattenUpdates(updates) {
-  const flat = {};
-  for (const [key, value] of Object.entries(updates)) {
-    if (key === '$inc' || key === '$set' || key === '$push' || key === '$pull') continue;
-    flat[key] = value;
-  }
-  if (updates.$set) Object.assign(flat, updates.$set);
-  return flat;
-}
+/** Internal: apply MongoDB-style update operators and persist. */
+function _updateRows(table, filter, updates) {
+  const { where, params } = buildWhere(filter);
+  const rows = db.prepare(`SELECT * FROM ${table} ${where}`).all(...params);
+  if (rows.length === 0) return;
 
-/** Internal: update rows with MongoDB-style operators */
-async function _updateRows(table, pkColumn, filter, updates, isMany) {
-  // Fetch matching rows first (needed for $inc, $push, $pull)
-  let q = supabase.from(table).select();
-  q = applyFilters(q, filter);
-  const { data: rows, error: fetchErr } = await q;
-  if (fetchErr || !rows || rows.length === 0) return;
+  for (const row of rows) {
+    const hydrated = hydrate(row, table);
+    const allFields = { ...hydrated };
+    delete allFields.save;
 
-  const targets = isMany ? rows : [rows[0]];
-
-  for (const row of targets) {
-    const changes = {};
-
-    // Handle $inc
+    // Apply $inc
     if (updates.$inc) {
       for (const [field, amount] of Object.entries(updates.$inc)) {
-        changes[field] = (row[field] || 0) + amount;
+        allFields[field] = (allFields[field] || 0) + amount;
       }
     }
-
-    // Handle $set
+    // Apply $set
     if (updates.$set) {
-      Object.assign(changes, updates.$set);
+      for (const [field, value] of Object.entries(updates.$set)) {
+        _setNested(allFields, field, value);
+      }
     }
-
-    // Handle $push (append to array)
+    // Apply $push
     if (updates.$push) {
       for (const [field, value] of Object.entries(updates.$push)) {
-        const arr = Array.isArray(row[field]) ? [...row[field]] : [];
-        arr.push(value);
-        changes[field] = arr;
+        const arr = _getNested(allFields, field) || [];
+        if (Array.isArray(arr)) arr.push(value);
+        _setNested(allFields, field, arr);
       }
     }
-
-    // Handle $pull (remove from array)
+    // Apply $pull
     if (updates.$pull) {
       for (const [field, value] of Object.entries(updates.$pull)) {
-        const arr = Array.isArray(row[field]) ? row[field].filter(v => v !== value) : [];
-        changes[field] = arr;
+        const arr = _getNested(allFields, field) || [];
+        if (Array.isArray(arr)) {
+          _setNested(allFields, field, arr.filter(v => v !== value));
+        }
+      }
+    }
+    // Apply plain (non-operator) keys
+    for (const [key, value] of Object.entries(updates)) {
+      if (!key.startsWith('$')) {
+        if (key.includes('.')) _setNested(allFields, key, value);
+        else allFields[key] = value;
       }
     }
 
-    // Handle plain key-value updates (non-operator keys)
-    for (const [key, value] of Object.entries(updates)) {
-      if (!key.startsWith('$')) changes[key] = value;
+    // Persist
+    const dedicated = {};
+    const jsonData = {};
+    for (const [k, v] of Object.entries(allFields)) {
+      if (k === 'id') continue;
+      if (DEDICATED_COLS.has(k)) dedicated[k] = v;
+      else jsonData[k] = v;
     }
-
-    if (Object.keys(changes).length > 0) {
-      const { error } = await supabase
-        .from(table)
-        .update(changes)
-        .eq(pkColumn, row[pkColumn]);
-      if (error) throw error;
-    }
+    dedicated.data = JSON.stringify(jsonData);
+    const sets = Object.keys(dedicated).map(k => `${k} = ?`).join(', ');
+    const vals = Object.values(dedicated);
+    db.prepare(`UPDATE ${table} SET ${sets} WHERE id = ?`).run(...vals, row.id);
   }
 }
 
-module.exports = { supabase, createTableWrapper, attachSave, applyFilters };
+function _getNested(obj, path) {
+  return path.split('.').reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), obj);
+}
+
+function _setNested(obj, path, value) {
+  const keys = path.split('.');
+  let cur = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!cur[keys[i]] || typeof cur[keys[i]] !== 'object') cur[keys[i]] = {};
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = value;
+}
+
+module.exports = { createTableWrapper };

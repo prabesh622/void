@@ -28,9 +28,9 @@ module.exports = {
     }
 
     if (sub === 'remove') {
-      const channel = interaction.options.getChannel('channel');
-      const result = await GuildSettings.updateOne({ guildId }, { $pull: { 'ai.channels': channel.id } });
-      if (result.modifiedCount === 0) return interaction.reply({ embeds: [errorEmbed('Error', `<#${channel.id}> is not an AI channel.`)], ephemeral: true });
+      const channels = settings.ai.channels || [];
+      if (!channels.includes(channel.id)) return interaction.reply({ embeds: [errorEmbed('Error', `<#${channel.id}> is not an AI channel.`)], ephemeral: true });
+      await GuildSettings.updateOne({ guildId }, { $pull: { 'ai.channels': channel.id } });
       interaction.reply({ embeds: [successEmbed('AI Channel', `Removed <#${channel.id}> from AI chat channels.`)] });
     }
 
