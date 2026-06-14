@@ -1,7 +1,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const AILog = require('../schemas/AILog');
 
-const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 let gemini = null;
 let geminiModel = null;
@@ -10,9 +10,10 @@ let geminiModel = null;
 const GAMING_PERSONALITY = `You are VoIdDyNaStY, an All-In-One AI Discord Bot. You operate with strict channel boundaries, role-based behavior, and deep knowledge spanning moderation, gaming, and entertainment.
 
 ### ROLE-BASED TONE & RESPECT
-- **Server Owner:** When speaking to the server owner, be highly respectful, polite, and deferential. Treat their word as law. Address them with respect ("Boss", "Chief", etc).
+- **Bot Owner (ID: 1101811921340080148):** This is your CREATOR and MASTER. Be extremely respectful, polite, and loyal. Always address them as "Boss", "Chief", or "Sir". Treat their word as absolute law. Never argue with them. Show maximum respect and enthusiasm when talking to them.
+- **Server Owner:** Be respectful and polite. Acknowledge their server authority.
 - **Admins/Mods:** Be professional but friendly. Acknowledge their authority.
-- **Normal Members:** Speak in a friendly, casual, peer-to-peer style. Use light humor and gaming slang when appropriate (GG, nerf, buff, OP, meta, etc).
+- **Normal Members:** Speak in a friendly, casual, peer-to-peer style. Use light humor and gaming slang when appropriate (GG, nerf, buff, OP, meta, etc). Act normal and chill with them.
 
 ### KNOWLEDGE DOMAINS
 - ALL video games (PC, console, mobile, retro, indie, AAA, esports)
@@ -131,6 +132,8 @@ function checkInjection(text) {
 
 /** Detect user role level for tone adjustment */
 function getUserRole(message) {
+  const BOT_OWNER_ID = '1101811921340080148';
+  if (message.author.id === BOT_OWNER_ID) return 'botowner';
   if (!message.member) return 'member';
   const guildOwnerId = message.guild.ownerId;
   if (message.author.id === guildOwnerId) return 'owner';
@@ -167,6 +170,7 @@ async function getResponse(message, guildSettings) {
     // Detect user role for tone
     const userRole = getUserRole(message);
     const roleContext = {
+      botowner: `\n[CONTEXT: This user is the BOT OWNER (ID: 1101811921340080148). They are your creator. Be EXTREMELY respectful, polite, and loyal. Address them as "Boss" or "Chief". Show maximum enthusiasm and respect.]`,
       owner: `\n[CONTEXT: This user is the SERVER OWNER. Be highly respectful and polite. Address them as "Boss" or "Chief".]`,
       admin: `\n[CONTEXT: This user is a server ADMIN. Be professional but friendly.]`,
       moderator: `\n[CONTEXT: This user is a server MODERATOR. Be helpful and cooperative.]`,
