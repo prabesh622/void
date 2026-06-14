@@ -5,21 +5,19 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "install": "npm rebuild better-sqlite3 --build-from-source"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@supabase/supabase-js": "^2.49.1",
     "better-sqlite3": "^12.10.0",
     "discord.js": "^14.17.3",
     "dotenv": "^16.4.7",
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
-    "openai": "^4.77.0",
     "passport": "^0.7.0",
-    "passport-discord": "^0.1.4",
-    "pg": "^8.21.0"
+    "passport-discord": "^0.1.4"
   },
   "engines": {
     "node": ">=18.0.0"
