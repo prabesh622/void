@@ -112,7 +112,7 @@ module.exports = {
       new ButtonBuilder().setCustomId('admin_purgeall').setLabel('Purge Channel').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
       new ButtonBuilder().setCustomId('admin_serverstats').setLabel('Server Stats').setStyle(ButtonStyle.Primary).setEmoji('📊'),
       new ButtonBuilder().setCustomId('admin_rolelist').setLabel('Role List').setStyle(ButtonStyle.Secondary).setEmoji('📋'),
-      new ButtonBuilder().setCustomId('admin_refresh').setLabel('Refresh').setStyle(ButtonStyle.Secondary).setEmoji('🔄'),
+      new ButtonBuilder().setCustomId('admin_channels').setLabel('Channels').setStyle(ButtonStyle.Primary).setEmoji('💬'),
     );
 
     interaction.reply({ embeds: [embed], components: [row1, row2, row3], ephemeral: true });
