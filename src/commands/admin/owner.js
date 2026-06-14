@@ -2,7 +2,6 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 const { successEmbed, errorEmbed, infoEmbed } = require('../../utils/embeds');
 const GuildSettings = require('../../schemas/GuildSettings');
 const Level = require('../../schemas/Level');
-const Economy = require('../../schemas/Economy');
 const Ticket = require('../../schemas/Ticket');
 const AILog = require('../../schemas/AILog');
 

@@ -2,7 +2,6 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType,
 const { errorEmbed, infoEmbed, successEmbed } = require('../utils/embeds');
 const GuildSettings = require('../schemas/GuildSettings');
 const Ticket = require('../schemas/Ticket');
-const Giveaway = require('../schemas/Giveaway');
 const ReactionRole = require('../schemas/ReactionRole');
 
 module.exports = {
@@ -159,30 +158,6 @@ module.exports = {
         // DM transcript to user
         try { await interaction.user.send({ embeds: [embed] }); } catch {}
         interaction.editReply({ embeds: [successEmbed('Transcript', 'Generated and sent.')] });
-      }
-
-      // Giveaway enter
-      if (id === 'giveaway_enter') {
-        const gw = await Giveaway.findOne({ messageId: interaction.message.id });
-        if (!gw) return interaction.reply({ embeds: [errorEmbed('Error', 'Giveaway not found.')], ephemeral: true });
-        if (gw.status !== 'running') return interaction.reply({ embeds: [errorEmbed('Error', 'This giveaway has ended.')], ephemeral: true });
-        if (gw.hostId === interaction.user.id) return interaction.reply({ embeds: [errorEmbed('Error', 'You cannot enter your own giveaway.')], ephemeral: true });
-
-        if (gw.entries.includes(interaction.user.id)) {
-          gw.entries = gw.entries.filter(e => e !== interaction.user.id);
-          await gw.save();
-          interaction.reply({ embeds: [infoEmbed('Giveaway', 'Entry removed.')], ephemeral: true });
-        } else {
-          // Check requirements
-          if (gw.requirements?.roleId) {
-            if (!interaction.member.roles.cache.has(gw.requirements.roleId)) {
-              return interaction.reply({ embeds: [errorEmbed('Error', 'You don\'t have the required role.')], ephemeral: true });
-            }
-          }
-          gw.entries.push(interaction.user.id);
-          await gw.save();
-          interaction.reply({ embeds: [successEmbed('Giveaway', `Entered! (${gw.entries.length} entries)`)], ephemeral: true });
-        }
       }
 
       // RPS buttons

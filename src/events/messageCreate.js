@@ -1,12 +1,11 @@
 const GuildSettings = require('../schemas/GuildSettings');
 const Level = require('../schemas/Level');
 const AFK = require('../schemas/AFK');
-const CustomCommand = require('../schemas/CustomCommand');
 const aiService = require('../services/aiService');
 const securityService = require('../services/securityService');
 const ticketAIService = require('../services/ticketAIService');
 const { checkFeatureCooldown } = require('../services/cooldownService');
-const { cleanContent, replaceVariables } = require('../utils/helpers');
+const { cleanContent } = require('../utils/helpers');
 
 const xpCooldowns = new Map();
 
@@ -151,34 +150,6 @@ module.exports = {
               }
             }
           }
-        }
-      }
-    }
-
-    // === CUSTOM COMMANDS ===
-    if (settings?.customCommands?.enabled) {
-      const customCmds = await CustomCommand.find({ guildId, enabled: true });
-      for (const cmd of customCmds) {
-        let matched = false;
-        if (cmd.isRegex) {
-          try { matched = new RegExp(cmd.trigger, 'i').test(message.content); } catch {}
-        } else {
-          matched = message.content.toLowerCase().includes(cmd.trigger.toLowerCase());
-        }
-        if (matched) {
-          const cdKey = `cc-${guildId}-${cmd.trigger}-${userId}`;
-          const cd = checkFeatureCooldown(cdKey, cmd.cooldown * 1000);
-          if (cd <= 0) {
-            let response = replaceVariables(cmd.response, { user: message.author.username, server: message.guild.name, mention: `<@${userId}>` });
-            if (cmd.isEmbed) {
-              const { EmbedBuilder } = require('discord.js');
-              const hex = parseInt(cmd.embedColor.replace('#', ''), 16);
-              message.reply({ embeds: [new EmbedBuilder().setColor(isNaN(hex) ? 0x3b82f6 : hex).setDescription(response).setTimestamp()] });
-            } else {
-              message.reply({ content: response });
-            }
-          }
-          break;
         }
       }
     }

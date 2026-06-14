@@ -34,12 +34,6 @@
         <p>Anti-spam, filters, bad words</p>
         <span class="badge <%= settings.automod?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.automod?.enabled ? 'Enabled' : 'Disabled' %></span>
       </a>
-      <a href="/dashboard/<%= guild.id %>/welcome" class="module-card">
-        <div class="module-icon">👋</div>
-        <h3>Welcome</h3>
-        <p>Welcome/goodbye messages, auto-role</p>
-        <span class="badge <%= settings.welcome?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.welcome?.enabled ? 'Enabled' : 'Disabled' %></span>
-      </a>
       <a href="/dashboard/<%= guild.id %>/logs" class="module-card">
         <div class="module-icon">📋</div>
         <h3>Logs</h3>
@@ -58,18 +52,6 @@
         <p>XP, ranks, voice XP, rewards</p>
         <span class="badge <%= settings.leveling?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.leveling?.enabled ? 'Enabled' : 'Disabled' %></span>
       </a>
-      <a href="/dashboard/<%= guild.id %>/economy" class="module-card">
-        <div class="module-icon">💰</div>
-        <h3>Economy</h3>
-        <p>Wallet, daily, work, payments</p>
-        <span class="badge <%= settings.economy?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.economy?.enabled ? 'Enabled' : 'Disabled' %></span>
-      </a>
-      <a href="/dashboard/<%= guild.id %>/giveaway" class="module-card">
-        <div class="module-icon">🎉</div>
-        <h3>Giveaways</h3>
-        <p>Start, end, reroll giveaways</p>
-        <span class="badge <%= settings.giveaways?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.giveaways?.enabled ? 'Enabled' : 'Disabled' %></span>
-      </a>
       <a href="/dashboard/<%= guild.id %>/ai" class="module-card">
         <div class="module-icon">🧠</div>
         <h3>AI Chat</h3>
@@ -82,23 +64,11 @@
         <p>Anti-raid, anti-nuke, scam links</p>
         <span class="badge <%= settings.security?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.security?.enabled ? 'Enabled' : 'Disabled' %></span>
       </a>
-      <a href="/dashboard/<%= guild.id %>/verification" class="module-card">
-        <div class="module-icon">✅</div>
-        <h3>Verification</h3>
-        <p>Captcha, anti-alt, verify role</p>
-        <span class="badge <%= settings.verification?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.verification?.enabled ? 'Enabled' : 'Disabled' %></span>
-      </a>
       <a href="/dashboard/<%= guild.id %>/reaction-roles" class="module-card">
         <div class="module-icon">🎭</div>
         <h3>Reaction Roles</h3>
         <p>Button & select menu roles</p>
         <span class="badge <%= settings.reactionRoles?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.reactionRoles?.enabled ? 'Enabled' : 'Disabled' %></span>
-      </a>
-      <a href="/dashboard/<%= guild.id %>/custom-commands" class="module-card">
-        <div class="module-icon">⚡</div>
-        <h3>Custom Commands</h3>
-        <p>Auto-responses, triggers</p>
-        <span class="badge <%= settings.customCommands?.enabled ? 'badge-on' : 'badge-off' %>"><%= settings.customCommands?.enabled ? 'Enabled' : 'Disabled' %></span>
       </a>
       <a href="/dashboard/<%= guild.id %>/settings" class="module-card">
         <div class="module-icon">⚙️</div>
