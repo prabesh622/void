@@ -142,7 +142,7 @@ function getUserRole(message) {
   return 'member';
 }
 
-/** Get AI response using Gemini with role context + live search */
+/** Get AI response using Gemini with role context + live search + retry */
 async function getResponse(message, guildSettings) {
   if (!geminiModel) return 'AI features are not configured. Please set your GEMINI_API_KEY.';
 
@@ -202,8 +202,27 @@ async function getResponse(message, guildSettings) {
     });
 
     const fullMessage = userMessage + (roleContext[userRole] || '') + searchContext;
-    const result = await chat.sendMessage(fullMessage);
-    const reply = result.response?.text()?.trim() || '';
+    
+    // Retry logic for rate limits
+    let reply = '';
+    let retries = 2;
+    while (retries > 0) {
+      try {
+        const result = await chat.sendMessage(fullMessage);
+        reply = result.response?.text()?.trim() || '';
+        break;
+      } catch (retryErr) {
+        const msg = retryErr.message || '';
+        if (msg.includes('429') || msg.includes('quota') || msg.includes('Quota')) {
+          console.log(`[AI] Rate limited, waiting 3s... (${retries} retries left)`);
+          await new Promise(r => setTimeout(r, 3000));
+          retries--;
+          continue;
+        }
+        throw retryErr;
+      }
+    }
+    
     if (!reply) {
       console.log('[AI] Empty response from Gemini');
       return 'Hmm, my brain short-circuited for a sec. Try asking again! 🎮';
@@ -228,7 +247,12 @@ async function getResponse(message, guildSettings) {
 
     return reply;
   } catch (err) {
-    console.error('[AI] Gemini Error:', err.message?.slice(0, 200));
+    const msg = err.message || '';
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('Quota')) {
+      console.error('[AI] Gemini quota exceeded - rate limited');
+      return 'I\'m getting too many requests right now! Give me a moment and try again. 🎮';
+    }
+    console.error('[AI] Gemini Error:', msg.slice(0, 200));
     return 'I encountered an error processing your message. Please try again later. 🎮';
   }
 }
