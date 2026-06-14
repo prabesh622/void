@@ -17,8 +17,8 @@ module.exports = {
     const text = interaction.options.getString('text');
     const style = interaction.options.getString('style') || 'brief';
 
-    if (!aiService.openai && !aiService.gemini) {
-      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xff4757).setDescription('AI is not configured. Please set OPENAI_API_KEY or GEMINI_API_KEY.')], ephemeral: true });
+    if (!aiService.gemini) {
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xff4757).setDescription('AI is not configured. Please set GEMINI_API_KEY.')], ephemeral: true });
     }
 
     await interaction.deferReply();

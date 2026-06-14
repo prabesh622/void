@@ -30,8 +30,8 @@ module.exports = {
     const toLang = interaction.options.getString('to');
     const fromLang = interaction.options.getString('from');
 
-    if (!aiService.openai && !aiService.gemini) {
-      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xff4757).setDescription('AI is not configured. Please set OPENAI_API_KEY or GEMINI_API_KEY.')], ephemeral: true });
+    if (!aiService.gemini) {
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xff4757).setDescription('AI is not configured. Please set GEMINI_API_KEY.')], ephemeral: true });
     }
 
     await interaction.deferReply();

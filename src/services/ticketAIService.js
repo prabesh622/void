@@ -2,18 +2,11 @@
  * Ticket AI Triage Service
  * Automatically qualifies tickets created by ANY ticket bot.
  * Asks questions via AI, evaluates responses, and reports qualification status.
+ * Uses Google Gemini for AI evaluation.
  */
 const { EmbedBuilder } = require('discord.js');
-const OpenAI = require('openai');
+const aiService = require('./aiService');
 const GuildSettings = require('../schemas/GuildSettings');
-
-let openai = null;
-
-function init() {
-  if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-}
 
 /** Active triage sessions: channelId -> { userId, guildId, step, answers, questions, startTime } */
 const activeSessions = new Map();
@@ -28,6 +21,10 @@ const DEFAULT_QUESTIONS = [
   'How urgent is this issue for you? (Low / Medium / High / Critical) and why?',
 ];
 
+function init() {
+  console.log('[TicketAI] Ticket AI triage service ready (using Gemini)');
+}
+
 /**
  * Check if a channel name matches the server's ticket patterns
  */
@@ -40,8 +37,8 @@ function isTicketChannel(channelName, patterns = ['ticket-']) {
  * Start a new triage session for a ticket channel
  */
 async function startTriage(channel, guildId, userId) {
-  if (activeSessions.has(channel.id)) return; // Already triaging
-  if (completedTriages.has(channel.id)) return; // Already completed
+  if (activeSessions.has(channel.id)) return;
+  if (completedTriages.has(channel.id)) return;
 
   const settings = await GuildSettings.findOne({ guildId }).catch(() => null);
   if (!settings?.ticketAI?.enabled) return;
@@ -81,7 +78,7 @@ async function startTriage(channel, guildId, userId) {
 async function processMessage(message) {
   const session = activeSessions.get(message.channel.id);
   if (!session) return false;
-  if (message.author.id !== session.userId) return false; // Only the ticket opener's messages count
+  if (message.author.id !== session.userId) return false;
   if (message.author.bot) return false;
 
   const { questions, step, answers } = session;
@@ -108,14 +105,13 @@ async function processMessage(message) {
   }
 
   // All questions answered — run AI evaluation
-  await message.channel.sendTyping?.();
+  try { await message.channel.sendTyping(); } catch {}
 
   const evaluation = await evaluateTicket(session);
 
   // Build result embed
   const isQualified = evaluation.qualified;
-  const score = evaluation.score; // 0-100
-  const maxQ = questions.length;
+  const score = evaluation.score;
 
   const color = isQualified ? 0x00d26a : 0xff4757;
   const status = isQualified ? '✅ QUALIFIED' : '❌ NOT QUALIFIED';
@@ -148,14 +144,9 @@ async function processMessage(message) {
 }
 
 /**
- * Evaluate the ticket using AI
+ * Evaluate the ticket using Gemini AI
  */
 async function evaluateTicket(session) {
-  if (!openai) {
-    // Fallback: simple keyword-based evaluation
-    return fallbackEvaluation(session);
-  }
-
   const qaText = session.answers.map(a => `Q: ${a.question}\nA: ${a.answer}`).join('\n\n');
 
   const systemPrompt = `You are a ticket qualification AI for a Discord server. Your job is to evaluate whether a support ticket is legitimate and qualifies for staff attention.
@@ -170,20 +161,19 @@ Respond in this EXACT JSON format (no markdown, no code block):
 {"qualified": true/false, "score": 0-100, "reason": "brief explanation"}`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Evaluate this support ticket:\n\n${qaText}` },
-      ],
-      max_tokens: 300,
-      temperature: 0.3,
-    });
+    const reply = await aiService.getGeminiResponse(
+      `Evaluate this support ticket:\n\n${qaText}`,
+      systemPrompt
+    );
 
-    const raw = completion.choices[0]?.message?.content?.trim() || '{}';
-    // Parse JSON from response (strip markdown if present)
-    const cleaned = raw.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+    if (!reply) return fallbackEvaluation(session);
+
+    // Parse JSON from response
+    const cleaned = reply.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return fallbackEvaluation(session);
+
+    const parsed = JSON.parse(jsonMatch[0]);
 
     return {
       qualified: parsed.qualified === true,
@@ -209,7 +199,6 @@ function fallbackEvaluation(session) {
     else if (len >= 5) { score += 10; }
     else { reasons.push('Very short answer'); }
 
-    // Check for spam/nonsense
     if (/^(.)\1+$/.test(a.answer.trim())) { score -= 20; reasons.push('Repeated characters'); }
     if (/^(idk|no|yes|nah|maybe|sure)$/i.test(a.answer.trim())) { score += 5; }
   }
@@ -257,25 +246,18 @@ async function notifyStaff(message, session, evaluation) {
 
   await logChannel.send({ embeds: [embed] }).catch(() => {});
 
-  // Ping staff role if not qualified
   if (!isQualified && settings.ticketAI.staffRoleId) {
     await logChannel.send({ content: `<@&${settings.ticketAI.staffRoleId}> Ticket needs review.` }).catch(() => {});
   }
 }
 
-/**
- * Check if a channel is currently being triaged
- */
 function isTriaging(channelId) {
   return activeSessions.has(channelId);
 }
 
-/**
- * Cancel a triage session (e.g., if ticket is closed)
- */
 function cancelSession(channelId) {
   activeSessions.delete(channelId);
-  completedTriages.add(channelId); // Don't re-triage cancelled sessions
+  completedTriages.add(channelId);
 }
 
 module.exports = {

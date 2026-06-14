@@ -302,6 +302,60 @@ function clearMemory(guildId, channelId, userId) {
   memory.delete(key);
 }
 
+/** Generate a meme caption or joke using Gemini */
+async function generateMeme(topic) {
+  if (!geminiModel) return null;
+  return getGeminiResponse(
+    `Generate a funny, viral-style meme caption about: ${topic}. Give me 3 options, each on a new line. Be creative and use internet humor.`,
+    'You are a meme generator AI. Create funny, viral meme captions. Be creative with internet culture and humor. Keep each caption under 20 words.'
+  );
+}
+
+/** Explain code using Gemini */
+async function explainCode(code, language = '') {
+  if (!geminiModel) return null;
+  return getGeminiResponse(
+    `Explain this ${language} code in simple terms. What does it do? How does it work?\n\n\`\`\`${language}\n${code}\n\`\`\``,
+    'You are a code explanation assistant. Explain code clearly and concisely. Use bullet points. Highlight key concepts.'
+  );
+}
+
+/** Generate a short story using Gemini */
+async function generateStory(prompt, genre = 'adventure') {
+  if (!geminiModel) return null;
+  return getGeminiResponse(
+    `Write a short ${genre} story (under 200 words) based on this prompt: ${prompt}`,
+    'You are a creative storyteller. Write engaging short stories. Use vivid descriptions and dialogue. Keep it under 200 words.'
+  );
+}
+
+/** AI debate - generate arguments for both sides */
+async function generateDebate(topic) {
+  if (!geminiModel) return null;
+  return getGeminiResponse(
+    `Generate a debate about: "${topic}". Give 3 strong arguments FOR and 3 strong arguments AGAINST. Format with bold headers.`,
+    'You are a debate moderator. Present balanced, logical arguments for both sides of a topic. Use bold headers and bullet points.'
+  );
+}
+
+/** Generate a roast using Gemini */
+async function generateRoast(target, context = '') {
+  if (!geminiModel) return null;
+  return getGeminiResponse(
+    `Generate a funny (but not too mean) roast about: ${target}${context ? '. Context: ' + context : ''}. Keep it playful and humorous.`,
+    'You are a comedy roast writer. Create funny, playful roasts. Be witty and creative. Keep it lighthearted, not cruel. Under 100 words.'
+  );
+}
+
+/** AI-powered text correction/grammar fix */
+async function fixGrammar(text) {
+  if (!geminiModel) return null;
+  return getGeminiResponse(
+    `Fix the grammar and spelling in this text. Return ONLY the corrected version:\n\n${text}`,
+    'You are a grammar correction AI. Fix all grammar, spelling, and punctuation errors. Return only the corrected text.'
+  );
+}
+
 /** AI-powered rule violation checker */
 const ruleCheckCooldown = new Map();
 async function checkRuleViolation(message) {
@@ -379,5 +433,11 @@ module.exports = {
   personalities,
   checkInjection,
   GAMING_PERSONALITY,
+  generateMeme,
+  explainCode,
+  generateStory,
+  generateDebate,
+  generateRoast,
+  fixGrammar,
   get gemini() { return geminiModel; },
 };
