@@ -1,11 +1,12 @@
-node_modules/
-data/
+node_modules
+data
 .env
-.DS_Store
 *.png
 *.jpg
 *.jpeg
 *.log
-qoder/
-.git/
+*.zip
+.git
 .gitignore
+qoder
+DEPLOYMENT.md
